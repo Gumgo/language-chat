@@ -27,9 +27,8 @@ const firebaseOptions: FirebaseOptions = {
   measurementId: "G-YMHBSSFTPN",
 };
 
-const k_useEmulatorDatabase = true;
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-if (k_useEmulatorDatabase) {
+const useEmulatorDatabase = window.location.hostname === "127.0.0.1";
+if (useEmulatorDatabase) {
   firebaseOptions.databaseURL = "http://127.0.0.1:9000/?ns=language-chat-default-rtdb";
 }
 
