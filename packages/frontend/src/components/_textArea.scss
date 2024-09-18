@@ -1,0 +1,18 @@
+@use "themeVariables" as *;
+
+.text-area {
+  resize: none;
+  padding: $text-area-padding-top-bottom $text-area-padding-left-right;
+  border-radius: $line-height * 0.5em + $text-area-padding-top-bottom;
+  border: none;
+  outline: none;
+  background-color: $text-area-background-color;
+  font-family: $font-family;
+  @include control-shadow;
+
+  @include standard-transition(background-color);
+
+  &.error {
+    background-color: $text-area-background-color-error;
+  }
+}

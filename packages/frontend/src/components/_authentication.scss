@@ -1,0 +1,9 @@
+.authentication-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  & > h3 {
+    text-align: center;
+  }
+}

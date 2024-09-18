@@ -1,0 +1,45 @@
+@use "themeVariables" as *;
+
+$-arrow-size: 0.4em;
+$-arrow-text-padding: $select-padding-top-bottom;
+
+// $TODO the dropdown isn't custom-styled currently (but we'd have to make a fully custom control for that)
+.select {
+  position: relative;
+  height: fit-content;
+
+  & select {
+    appearance: none;
+    width: 100%;
+    padding: $select-padding-top-bottom $select-padding-left-right + $-arrow-size + $-arrow-text-padding $select-padding-top-bottom $select-padding-left-right;
+    border-radius: $line-height * 0.5em + $select-padding-top-bottom;
+    border: none;
+    outline: none;
+    background-color: $select-background-color;
+    @include control-shadow;
+  }
+
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    top: calc(50% - $-arrow-size * 0.5);
+    right: $select-padding-left-right;
+    width: $-arrow-size;
+    height: $-arrow-size;
+    border-bottom: 2px solid #000;
+    border-right: 2px solid #000;
+    pointer-events: none;
+    transform-origin: center;
+  }
+
+  &::before {
+    z-index: 1;
+    transform: translate(0, $-arrow-size * 0.4) rotate(45deg);
+  }
+
+  &::after {
+    z-index: 1;
+    transform: translate(0, $-arrow-size * -0.4) rotate(225deg);
+  }
+}

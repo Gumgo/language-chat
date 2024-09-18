@@ -1,0 +1,81 @@
+@use "themeVariables" as *;
+
+$icon-size: 1em;
+$icon-padding: 0.375em;
+
+.input {
+  padding: $input-padding-top-bottom $input-padding-left-right;
+  border-radius: $line-height * 0.5em + $input-padding-top-bottom;
+  border: none;
+  outline: none;
+  background-color: $input-background-color;
+  @include control-shadow;
+
+  @include standard-transition(background-color);
+
+  &.error {
+    background-color: $input-background-color-error;
+  }
+}
+
+.input-with-icon .input {
+  padding-left: $input-padding-left-right + $icon-size + $icon-padding;
+}
+
+.flat-left.input,
+.input-with-icon.flat-left > .input {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding-left: $input-padding-top-bottom;
+}
+
+.flat-right.input,
+.input-with-icon.flat-right > .input {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  padding-right: $input-padding-top-bottom;
+}
+
+.disable-shadow.input
+.input-with-icon.disable-shadow > .input {
+  box-shadow: none;
+}
+
+.input-with-icon {
+  position: relative;
+
+  & .icon {
+    // Note: this is currently incompatible with flat-left and flat-right due to padding differences
+    position: absolute;
+    top: 50%;
+    left: $input-padding-left-right + $icon-size * 0.5;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    color: #000;
+    opacity: 0.5;
+  }
+}
+
+.input-group {
+  position: relative;
+  width: fit-content;
+  height: fit-content;
+
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+
+  & > .spacer {
+    min-width: 0.125rem;
+    background-color: $background-color-dark;
+  }
+
+  &::after {
+    position: absolute;
+    content: "";
+    pointer-events: none;
+    inset: 0;
+    border-radius: $line-height * 0.5em + $input-padding-top-bottom;
+    @include control-shadow;
+  }
+}

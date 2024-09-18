@@ -1,0 +1,61 @@
+@use "components/authentication";
+@use "components/button";
+@use "components/checkbox";
+@use "components/dialog";
+@use "components/focusTrap";
+@use "components/input";
+@use "components/loadingDots";
+@use "components/select";
+@use "components/textArea";
+@use "dialogs/conversationSettingsDialog";
+@use "pages/conversationPage";
+@use "pages/conversationsPage";
+@use "pages/startConversationPage";
+@use "pages/homePage";
+@use "theme";
+@use "themeVariables" as *;
+
+$max-width: 800px;
+$padding: 1rem;
+
+#root {
+  max-width: $max-width;
+  width: 100vw;
+  height: 100vh;
+  margin: auto;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.content-container {
+  max-width: calc(100vw - $padding * 2);
+  min-height: calc(100vh - $padding * 2);
+  flex-grow: 1;
+
+  background-color: $background-color-mid;
+  border-radius: $container-border-radius;
+  margin: 1rem;
+  padding: 1rem;
+
+  @include control-shadow;
+}
+
+.not-found,
+.fetch-voices-failed {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-size: 2rem;
+}
+
+.fetching-voices {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}

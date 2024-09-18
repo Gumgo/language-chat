@@ -1,0 +1,22 @@
+{
+  "name": "language-chat",
+  "version": "1.0.0",
+  "description": "An AI chatbot to practice language",
+  "author": "Ben Self",
+  "license": "ISC",
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "build-dev": "npm run build-dev --workspaces",
+    "watch": "concurrently --kill-others \"npm run watch -w packages/functions\" \"npm run watch -w packages/frontend\"",
+    "serve": "concurrently --kill-others \"npm run watch -w packages/functions\" \"npm run watch -w packages/frontend\" \"firebase emulators:start\"",
+    "deploy": "npm run build --workspaces && firebase deploy"
+  },
+  "keywords": [],
+  "workspaces": [
+    "packages/functions",
+    "packages/frontend"
+  ],
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

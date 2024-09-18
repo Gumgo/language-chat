@@ -1,0 +1,84 @@
+@use "themeVariables" as *;
+
+.dialog-topics-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: stretch;
+
+  & .loading-dots {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+.select-langauge-dialog-languages-container {
+  align-self: center;
+}
+
+.mistake-list-container {
+  display: flex;
+  flex-direction: column;
+  max-height: 400px;
+  gap: 0.25rem;
+  overflow-y: auto;
+
+  & .mistake {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    background-color: $background-color-mid;
+    border-radius: $container-border-radius;
+    padding: 1rem;
+    gap: 0.5rem;
+
+    & .description-and-date {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+
+      & .description {
+        font-weight: bold;
+      }
+    }
+  }
+}
+
+.start-conversation-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+
+  & .conversation-settings-grid {
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: auto 12rem;
+    align-items: center;
+
+    & .label {
+      text-align: right;
+      align-self: center;
+    }
+
+    & .conversation-topic-container {
+      display: flex;
+      flex-direction: row;
+      gap: 0.5rem;
+
+      & > :first-child {
+        width: 0;
+        flex-grow: 1;
+      }
+    }
+  }
+
+  & .buttons-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+}

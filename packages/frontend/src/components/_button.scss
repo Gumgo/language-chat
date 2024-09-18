@@ -1,0 +1,106 @@
+@use "sass:map";
+@use "themeVariables" as *;
+
+@mixin button-theme($theme-name, $theme) {
+  &.#{$theme-name} {
+    color: map.get($theme, "color");
+    background-color: map.get($theme, "background-color");
+  }
+}
+
+@mixin icon-button-theme($theme-name, $theme) {
+  // Icon buttons use the background color as the icon color
+  &.#{$theme-name} {
+    color: map.get($theme, "background-color");
+  }
+}
+
+.button-standard {
+  padding: $button-padding-top-bottom $button-padding-left-right;
+  border: none;
+  border-radius: $line-height * 0.5em + $button-padding-top-bottom;
+
+  @include standard-transition(filter, opacity);
+
+  @include button-theme("primary", $button-primary-theme);
+  @include button-theme("gray", $button-gray-theme);
+
+  &.flat-left {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    padding-left: 0.5 * ($button-padding-left-right + $button-padding-top-bottom);
+  }
+
+  &.flat-right {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    padding-right: 0.5 * ($button-padding-left-right + $button-padding-top-bottom);
+  }
+
+  &:hover {
+    filter: $button-filter-hover;
+  }
+
+  &:active,
+  &.pressed {
+    filter: $button-filter-pressed;
+  }
+
+  &:disabled {
+    filter: $button-filter-disabled;
+    opacity: $button-opacity-disabled;
+  }
+
+  &:not(.disable-shadow) {
+    @include control-shadow;
+  }
+}
+
+.button-icon-only {
+  background: none;
+  padding: 0;
+  border: none;
+
+  @include standard-transition(filter, opacity);
+
+  @include icon-button-theme("primary", $button-primary-theme);
+  @include icon-button-theme("gray", $button-gray-theme);
+
+  &:hover {
+    filter: $button-filter-hover;
+  }
+
+  &:active,
+  &.pressed {
+    filter: $button-filter-pressed;
+  }
+
+  &:disabled {
+    filter: $button-filter-disabled;
+    opacity: $button-opacity-disabled;
+  }
+}
+
+.button-content {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  column-gap: 0.5em;
+  white-space: nowrap;
+}
+
+.button-multi-content-container {
+  display: grid;
+
+  & > * {
+    grid-area: 1 / 1 / 1 / 1;
+  }
+
+  & > .hidden {
+    visibility: hidden;
+  }
+}
+
+a.button-link {
+  text-decoration: none;
+}

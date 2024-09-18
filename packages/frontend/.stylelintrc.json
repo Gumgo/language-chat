@@ -1,0 +1,14 @@
+{
+  "extends": "stylelint-config-standard-scss",
+  "rules": {
+    "color-no-invalid-hex": true,
+    "number-max-precision": 6,
+    "font-family-no-duplicate-names": true,
+    "font-family-no-missing-generic-family-keyword": true,
+    "at-rule-empty-line-before": null,
+    "declaration-empty-line-before": null,
+
+    "scss/dollar-variable-empty-line-before": null,
+    "scss/dollar-variable-colon-space-after": "at-least-one-space"
+  }
+}

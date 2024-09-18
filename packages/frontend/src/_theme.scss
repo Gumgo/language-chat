@@ -1,0 +1,78 @@
+@use "sass:map";
+@use "themeVariables" as *;
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  line-height: $line-height;
+  font-size: 100%; // $TODO but see this: https://www.freecodecamp.org/news/override-root-font-size-for-a-better-user-experience/
+  font-family: $font-family;
+  color: #fff;
+}
+
+body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-size: 1rem;
+  margin: 0;
+  background-color: $background-color-dark;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+}
+
+::-webkit-scrollbar {
+  // $TODO set up horizontal scrollbar too
+  width: $scrollbar-width;
+}
+
+::-webkit-scrollbar-thumb {
+  position: relative;
+  border-radius: $scrollbar-width * 0.5;
+  width: $scrollbar-width;
+
+  // $TODO this renders incorrectly (in Chrome at least):
+  // @include control-shadow;
+
+  background-color: map.get($button-primary-theme, "background-color");
+
+  &:hover {
+    background-color: map.get($button-primary-theme, "background-color-hover");
+  }
+
+  &:active {
+    background-color: map.get($button-primary-theme, "background-color-pressed");
+  }
+
+  &:disabled {
+    background-color: map.get($button-primary-theme, "background-color-disabled");
+  }
+}
+
+button {
+  line-height: $line-height;
+  font-size: 1rem;
+  font-family: $font-family;
+
+  &:hover:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+// Note: if needed we can also apply this styling to other input types (email, password, etc.)
+input[type="text"] {
+  line-height: $line-height;
+  font-size: 1rem;
+  font-family: $font-family;
+}
+
+hr {
+  border: none;
+  height: 1px;
+  margin: 0;
+  background-color: $button-primary-background-color;
+}

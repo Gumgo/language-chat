@@ -1,0 +1,63 @@
+@use "sass:color";
+
+$scrollbar-width: 12px;
+
+$background-color-dark: #252735;
+$background-color-mid: #2a3142;
+$background-color-light: #3c4a6b;
+
+$line-height: 1.15;
+$font-family: trebuchet, sans-serif;
+
+$button-primary-background-color: #4491bd;
+$button-primary-theme: (
+  "color": #fff,
+  "background-color": $button-primary-background-color,
+);
+
+$button-gray-background-color: #ccc;
+$button-gray-theme: (
+  "color": #000,
+  "background-color": $button-gray-background-color,
+);
+
+$button-filter-hover: brightness(120%);
+$button-filter-pressed: brightness(80%);
+$button-filter-disabled: saturate(50%);
+$button-opacity-disabled: 0.5;
+
+$button-padding-left-right: 1.5em;
+$button-padding-top-bottom: 0.5em;
+
+$input-padding-left-right: 0.75em;
+$input-padding-top-bottom: 0.5em;
+$input-background-color: #eaeeef;
+$input-background-color-error: #ffdcdc;
+
+$text-area-padding-left-right: $input-padding-left-right;
+$text-area-padding-top-bottom: $input-padding-top-bottom;
+$text-area-background-color: $input-background-color;
+$text-area-background-color-error: $input-background-color-error;
+
+$select-padding-left-right: $input-padding-left-right;
+$select-padding-top-bottom: $input-padding-top-bottom;
+$select-background-color: $input-background-color;
+
+$checkbox-filter-pressed: brightness(60%);
+$checkbox-opacity-disabled: 0.5;
+
+$container-border-radius: 1rem;
+
+$dialog-z-index: 1000;
+
+$error-icon-color: #d82f0e;
+
+@mixin standard-transition($properties...) {
+  transition-property: $properties;
+  transition-duration: 0.125s;
+  transition-timing-function: ease-out;
+}
+
+@mixin control-shadow {
+  box-shadow: 0.25rem 0.25rem 0.25rem #00000040;
+}

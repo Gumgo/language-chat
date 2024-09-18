@@ -1,0 +1,39 @@
+@use "functions" as *;
+@use "themeVariables" as *;
+
+$checkbox-color: #333;
+$checked-background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path fill='none' stroke='#{$checkbox-color}' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5 L4 8 L8 2' /></svg>");
+$indeterminate-background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><rect fill='#{$checkbox-color}' x='2' y='2' width='6' height='6' rx='1' /></svg>");
+
+input[type="checkbox"] {
+  appearance: none;
+  width: 0.9em;
+  height: 0.9em;
+  border: none;
+  outline: none;
+  border-radius: 0.125em;
+  margin: 0;
+
+  background-color: $input-background-color;
+  @include standard-transition(filter, opacity);
+
+  @include control-shadow;
+
+  &:disabled {
+    opacity: $checkbox-opacity-disabled;
+  }
+
+  &:checked {
+    background-image: escape-svg($checked-background);
+    background-size: 100% 100%;
+  }
+
+  &:indeterminate {
+    background-image: escape-svg($indeterminate-background);
+    background-size: 100% 100%;
+  }
+
+  &:active:not(:disabled) {
+    filter: $checkbox-filter-pressed;
+  }
+}

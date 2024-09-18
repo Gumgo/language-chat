@@ -1,0 +1,71 @@
+function isCurrentUser(userId) { auth !== null && userId === auth.uid }
+
+type CreationTimestamp extends Number {
+  validate() { this == (prior(this) == null ? now : prior(this)) } // Use ServerValue.TIMESTAMP to set this
+}
+
+// Note: Any is used as a bug workaround (the actual type needs to be specified in the rule tree below)
+
+type User {
+  languages: Any | Null // Bug workaround, Any is Language[]
+}
+
+type Language {
+  conversations: Any | Null,        // Bug workaround, Any is Conversation[]
+  conversationMessages: Any | Null  // Bug workaround, Any is ConversationMessages[]
+}
+
+type Conversation {
+  date: CreationTimestamp,    // Date the conversation started
+  conversationTopic: String,  // String describing conversation topic
+  studyTopics: String[],      // List of topics to focus on
+  studyWords: String[]        // List of vocab words to focus on
+}
+
+type Mistake {
+  description: String,
+  severity: Number,
+  englishExplanation: String,
+  languageExplanation: String
+}
+
+type Message {
+  date: CreationTimestamp,
+  sender: String,
+  content: String,
+  tokenCount: Number | Null,
+
+  // If no mistakes were found, this is an empty string rather than an empty array to avoid ambiguity with null, which means that mistakes have not yet been
+  // processed.
+  mistakes: String | Mistake[] | Null;
+
+  // This is a summary of all messages prior to this message
+  summary: String | Null;
+}
+
+type ConversationMessages {
+  lastMessageId: String,  // Used to prevent multiple clients from concurrently adding messages (empty string is "no messages")
+  messages: Message[]     // List of messages sent/received in this conversation. The initial message is the prompt.
+}
+
+path /users {
+  /{userId} is User {
+    read() { isCurrentUser(userId) }
+
+    /languages/{language} is Language {
+      /conversations/{conversationId} is Conversation {
+        create() { isCurrentUser(userId) }
+        delete() { isCurrentUser(userId) && this.parent().parent().conversationMessages[conversationId] == null }
+        update() { isCurrentUser(userId) }
+        validate() { this.parent().parent().conversationMessages[conversationId] != null }
+      }
+
+      /conversationMessages/{conversationId} is ConversationMessages {
+        create() { isCurrentUser(userId) }
+        delete() { isCurrentUser(userId) && this.parent().parent().conversations[conversationId] == null }
+        update() { isCurrentUser(userId) }
+        validate() { this.parent().parent().conversations[conversationId] != null && ((this.lastMessageId.length == 0 && this.messages == null) || (this.lastMessageId.length > 0 && this.messages[this.lastMessageId] != null)) }
+      }
+    }
+  }
+}

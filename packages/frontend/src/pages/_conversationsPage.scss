@@ -1,0 +1,111 @@
+@use "themeVariables" as *;
+
+.conversation-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  & .entry {
+    display: flex;
+    flex-direction: column;
+
+    & .name {
+      font-weight: bold;
+    }
+
+    & .contents {
+      margin-left: 1rem;
+    }
+  }
+}
+
+.conversations-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  & .top-bar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    background-color: $background-color-light;
+    border-radius: $container-border-radius;
+    padding: $container-border-radius;
+    gap: 0.5rem;
+
+    @include control-shadow;
+
+    & a {
+      font-size: 2rem;
+    }
+
+    & h2 {
+      width: 0;
+      flex-grow: 1;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      text-align: center;
+
+      // Equalize space with the button on the left side
+      margin-right: 2.5rem;
+    }
+  }
+
+  & .centered {
+    align-self: center;
+    text-align: center;
+    margin-top: auto;
+    margin-bottom: auto;
+  }
+
+  & .select-all-container > :first-child {
+    float: right;
+    margin-right: 2rem;
+    margin-top: 1rem;
+  }
+
+  & .scroll-container {
+    flex-grow: 1;
+    overflow: auto;
+  }
+
+  & .conversations {
+    width: 100%;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    padding: 1rem;
+
+    & .conversation {
+      border-radius: $container-border-radius;
+      padding: $container-border-radius;
+      background-color: $background-color-light;
+      font-size: 1.2rem;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 0.5rem;
+
+      @include control-shadow;
+
+      & .description {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+
+        & .name {
+          font-weight: bold;
+        }
+      }
+    }
+  }
+
+  & .controls {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}

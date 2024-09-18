@@ -1,0 +1,205 @@
+@use "sass:color";
+@use "themeVariables" as *;
+
+$severity-1-color: #00d000;
+$severity-3-color: #d04600;
+$severity-5-color: #d00000;
+
+.conversation-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  & .top-bar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    background-color: $background-color-light;
+    border-radius: $container-border-radius;
+    padding: $container-border-radius;
+    gap: 0.5rem;
+
+    @include control-shadow;
+
+    & > a,
+    & > button {
+      font-size: 2rem;
+    }
+
+    & h2 {
+      width: 0;
+      flex-grow: 1;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      text-align: center;
+    }
+  }
+
+  & .centered {
+    align-self: center;
+    text-align: center;
+    margin-top: auto;
+    margin-bottom: auto;
+  }
+
+  & .scroll-container {
+    flex-grow: 1;
+    overflow: auto;
+  }
+
+  & .conversation-history {
+    width: 100%;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 1rem;
+
+    & .conversation-bubble {
+      border-radius: $container-border-radius;
+      padding: $container-border-radius;
+      max-width: calc(100% - 2rem);
+      color: #000;
+      font-size: 1.2rem;
+      gap: 0.5rem;
+
+      display: flex;
+      flex-direction: column;
+
+      @include control-shadow;
+
+      &.assistant {
+        align-self: flex-start;
+        background-color: #bbd;
+      }
+
+      &.user {
+        align-self: flex-end;
+        background-color: #bbddc1;
+      }
+
+      & .message-content {
+        $unrevealed-color: #808080;
+
+        color: #000;
+
+        transition: color 0.5s ease-out, background-color 0.5s ease-out;
+
+        &.unrevealed {
+          color: $unrevealed-color;
+          background-color: $unrevealed-color;
+
+          &:hover {
+            cursor: pointer;
+          }
+        }
+      }
+
+      & hr {
+        border: none;
+        background-color: #000;
+        opacity: 0.25;
+        height: 2px;
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
+      }
+
+      & .mistakes-title {
+        align-self: center;
+        text-align: center;
+      }
+
+      & .mistakes {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.5rem;
+
+        & .description {
+          font-weight: bold;
+        }
+
+        & .severity-1 { color: $severity-1-color; }
+        & .severity-2 { color: color.mix($severity-1-color, $severity-3-color, $weight: 50%); }
+        & .severity-3 { color: $severity-3-color; }
+        & .severity-4 { color: color.mix($severity-3-color, $severity-5-color, $weight: 50%); }
+        & .severity-5 { color: $severity-5-color; }
+      }
+
+      & .text-and-audio-controls {
+        align-self: center;
+        display: flex;
+        flex-direction: row;
+        gap: 0.5rem;
+
+        & .audio-controls {
+          display: grid;
+          justify-items: center;
+
+          & > * {
+            grid-row: 1;
+            grid-column: 1;
+
+            &.hidden {
+              visibility: hidden;
+            }
+          }
+        }
+
+        & button {
+          font-size: 2rem;
+        }
+
+        & .error {
+          font-size: 2rem;
+          color: $error-icon-color;
+        }
+
+        & .generating {
+          animation-name: spin;
+          animation-duration: 1s;
+          animation-iteration-count: infinite;
+
+          @keyframes spin {
+            from {
+              transform: rotate(0deg);
+              animation-timing-function: linear;
+            }
+
+            to {
+              transform: rotate(360deg);
+              animation-timing-function: linear;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  & .controls {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+
+    & .next-message-content {
+      flex-grow: 1;
+      font-size: 1.2rem;
+    }
+
+    & .actions {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+
+      & .action {
+        width: 2rem;
+        height: 2rem;
+        font-size: 2rem;
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": "lib",
+    "paths": {
+      "*": [ "src/*" ]
+    }
+  },
+  "compileOnSave": true,
+  "include": [ "src" ],
+  "exclude": [ "node_modules" ]
+}

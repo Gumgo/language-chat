@@ -1,0 +1,83 @@
+@use "themeVariables" as *;
+
+$dialog-viewport-padding: 1rem;
+$dialog-transition-duration: 0.125s;
+$dialog-transition-timing-function: ease-out;
+
+.dialog-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+
+  background-color: #0000;
+  pointer-events: none;
+
+  transition: background-color $dialog-transition-duration $dialog-transition-timing-function;
+  z-index: $dialog-z-index;
+
+  &.visible {
+    background-color: #00000080;
+    pointer-events: auto;
+  }
+}
+
+.dialog-event-blocker {
+  position: absolute;
+  inset: 0;
+
+  &.inactive {
+    pointer-events: none;
+  }
+}
+
+.dialog {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+
+  padding: 1rem;
+
+  background-color: $background-color-light;
+  border-radius: $container-border-radius;
+
+  @include control-shadow;
+
+  opacity: 0;
+  transform: translate(-50%, calc(-50% - 1rem)) scale(85%, 85%);
+
+  transition-property: opacity, transform, filter;
+  transition-duration: $dialog-transition-duration;
+  transition-timing-function: $dialog-transition-timing-function;
+
+  &.width-normal {
+    width: calc(min(40rem, 100vw - $dialog-viewport-padding * 2));
+  }
+
+  &.width-small {
+    width: calc(min(25rem, 100vw - $dialog-viewport-padding * 2));
+  }
+
+  &.visible {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+
+  &.obscured {
+    filter: brightness(50%);
+  }
+}
+
+.options-dialog-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  & .buttons {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+    justify-content: flex-end;
+  }
+}
