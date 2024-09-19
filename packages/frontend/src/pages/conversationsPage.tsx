@@ -105,7 +105,7 @@ export function ConversationsPage(props: ConversationsPageProps): React.JSX.Elem
   const [deleting, setDeleting] = React.useState(false);
 
   const conversationsElement = React.useRef<HTMLDivElement | null>(null);
-  const [conversationsWidth, setConversationsWidth] = React.useState(0);
+  const [conversationsScrollbarWidth, setConversationsScrollbarWidth] = React.useState(0);
 
   const isMounted = useIsMounted();
 
@@ -134,7 +134,14 @@ export function ConversationsPage(props: ConversationsPageProps): React.JSX.Elem
     () => {
       if (conversations !== null && conversations.length > 0) {
         assert(conversationsElement.current !== null);
-        const resizeObserver = new ResizeObserver((entries) => setConversationsWidth(entries[0].target.getBoundingClientRect().width));
+        const resizeObserver = new ResizeObserver(
+          (entries) => {
+            const width = entries[0].target.getBoundingClientRect().width;
+            const parent = entries[0].target.parentElement;
+            assert(parent !== null);
+            const parentWidth = parent.getBoundingClientRect().width;
+            setConversationsScrollbarWidth(parentWidth - width);
+          });
         resizeObserver.observe(conversationsElement.current);
         return () => resizeObserver.disconnect();
       } else {
@@ -206,7 +213,7 @@ export function ConversationsPage(props: ConversationsPageProps): React.JSX.Elem
               ? <h2 className="centered">No conversations</h2>
               : (
                 <>
-                  <div className="select-all-container" style={{ width: conversationsWidth }}>
+                  <div className="select-all-container" style={{ marginRight: conversationsScrollbarWidth }}>
                     <TriStateCheckbox value={selectAllValue} onChange={handleChangeSelectAll} />
                   </div>
                   <div className="scroll-container">

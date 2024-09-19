@@ -8,8 +8,12 @@ $dialog-transition-timing-function: ease-out;
   position: fixed;
   top: 0;
   left: 0;
+
   width: 100vw;
+  width: 100dvw;
+
   height: 100vh;
+  height: 100dvh;
 
   background-color: #0000;
   pointer-events: none;

@@ -20,8 +20,13 @@ $padding: 1rem;
 
 #root {
   max-width: $max-width;
+
   width: 100vw;
+  width: 100dvw;
+
   height: 100vh;
+  height: 100dvh;
+
   margin: auto;
 
   display: flex;
@@ -31,7 +36,11 @@ $padding: 1rem;
 
 .content-container {
   max-width: calc(100vw - $padding * 2);
+  max-width: calc(100dvw - $padding * 2);
+
   min-height: calc(100vh - $padding * 2);
+  min-height: calc(100dvh - $padding * 2);
+
   flex-grow: 1;
 
   background-color: $background-color-mid;
