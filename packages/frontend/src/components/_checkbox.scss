@@ -9,6 +9,8 @@ input[type="checkbox"] {
   appearance: none;
   width: 0.9em;
   height: 0.9em;
+  min-width: 0.9em;
+  min-height: 0.9em;
   border: none;
   outline: none;
   border-radius: 0.125em;
