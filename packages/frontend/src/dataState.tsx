@@ -1,6 +1,10 @@
 import { User } from "firebase/auth";
-import { Database, DataSnapshot, onValue, push, ref, runTransaction, serverTimestamp, update, get } from "firebase/database";
+import { Database, DataSnapshot, onValue, push, ref, runTransaction, serverTimestamp, update, get, set } from "firebase/database";
 import { assert, doThrow } from "utilities/errors";
+
+function waniKaniApiKeyPath(user: User): string {
+  return `/users/${user.uid}/waniKaniApiKey`;
+}
 
 function languagePath(user: User, language: string): string {
   return `/users/${user.uid}/languages/${language}`;
@@ -30,12 +34,69 @@ function conversationMessagesConversationMessagesMessagePath(user: User, languag
   return `${conversationMessagesConversationMessagesPath(user, language, conversationId)}/${messageId}`;
 }
 
+function vocabularyPath(user: User, language: string): string {
+  return `${languagePath(user, language)}/vocabulary`;
+}
+
+function vocabularyEntryPath(user: User, language: string, vocabularyEntryId: string): string {
+  return `${vocabularyPath(user, language)}/${vocabularyEntryId}`;
+}
+
+function vocabularyEntryListeningSrsReviewsPath(user: User, language: string, vocabularyEntryId: string): string {
+  return `${vocabularyEntryPath(user, language, vocabularyEntryId)}/listeningSrsReviews`;
+}
+
+function encodeVocabularyEntryId(word: string): string {
+  // We encode words using their UTF-8 bytes written out as hex
+  const bytes = new TextEncoder().encode(word);
+  return [...bytes].map((v) => v.toString(16).padStart(2, "0")).join("");
+}
+
+function decodeVocabularyEntryId(vocabularyEntryId: string): string {
+  if (vocabularyEntryId.length % 2 !== 0) {
+    throw new Error("Invalid vocabulary entry ID");
+  }
+
+  const byteCount = vocabularyEntryId.length >> 1;
+  const bytes = new Uint8Array([...new Array(byteCount).keys()].map((i) => parseInt(vocabularyEntryId.substring(i * 2, i * 2 + 2), 16)));
+  return new TextDecoder().decode(bytes);
+}
+
+function grammarRulesPath(user: User, language: string): string {
+  return `${languagePath(user, language)}/grammarRules`;
+}
+
+function grammarRuleEntryPath(user: User, language: string, grammarRuleId: string): string {
+  return `${grammarRulesPath(user, language)}/${grammarRuleId}`;
+}
+
+function grammarRuleEntryListeningSrsReviewsPath(user: User, language: string, grammarRuleId: string): string {
+  return `${grammarRuleEntryPath(user, language, grammarRuleId)}/listeningSrsReviews`;
+}
+
 export interface Conversation {
   id: string;
   date: Date;
   conversationTopic: string;
   studyTopics: string[];
   studyWords: string[];
+}
+
+export interface VocabularyEntry {
+  creationDate: Date;
+  word: string;
+  translation: string;
+  notes: string;
+  tags: string[];
+  listeningSrsReviews: Map<Date, boolean>;
+}
+
+export interface GrammarRuleEntry {
+  id: string;
+  creationDate: Date;
+  name: string;
+  description: string;
+  listeningSrsReviews: Map<Date, boolean>;
 }
 
 export type MessageSender = "System" | "Assistant" | "User";
@@ -190,6 +251,37 @@ function parseConversationMessages(snapshot: DataSnapshot): Message[] {
   return messages;
 }
 
+function parseVocabularyEntry(snapshot: DataSnapshot): VocabularyEntry {
+  const vocabularyEntry: VocabularyEntry = {
+    creationDate: new Date(snapshot.child("creationDate").val() as number),
+    word: decodeVocabularyEntryId(snapshot.key ?? doThrow(new Error("Vocabulary entry has no key"))),
+    translation: snapshot.child("translation").val() as string,
+    notes: snapshot.child("notes").val() as string,
+    tags: (snapshot.child("tags").val() as string).split(" "),
+    listeningSrsReviews: new Map(),
+  };
+
+  snapshot.child("listeningSrsReviews").forEach(
+    (reviewSnapshot) => void vocabularyEntry.listeningSrsReviews.set(new Date(reviewSnapshot.key), reviewSnapshot.val() as boolean));
+
+  return vocabularyEntry;
+}
+
+function parseGrammarRuleEntry(snapshot: DataSnapshot): GrammarRuleEntry {
+  const grammarRuleEntry: GrammarRuleEntry = {
+    id: snapshot.key ?? doThrow(new Error("Grammar rule entry has no key")),
+    creationDate: new Date(snapshot.child("creationDate").val() as number),
+    name: snapshot.child("name").val() as string,
+    description: snapshot.child("description").val() as string,
+    listeningSrsReviews: new Map(),
+  };
+
+  snapshot.child("listeningSrsReviews").forEach(
+    (reviewSnapshot) => void grammarRuleEntry.listeningSrsReviews.set(new Date(reviewSnapshot.key), reviewSnapshot.val() as boolean));
+
+  return grammarRuleEntry;
+}
+
 export class DataState {
   private readonly database: Database;
   private readonly user: User;
@@ -198,6 +290,15 @@ export class DataState {
   public constructor(database: Database, user: User) {
     this.database = database;
     this.user = user;
+  }
+
+  public async getWaniKaniApiKey(): Promise<string | null> {
+    const snapshot = await get(ref(this.database, waniKaniApiKeyPath(this.user)));
+    return snapshot.exists() ? snapshot.val() as string : null;
+  }
+
+  public async setWaniKaniApiKey(waniKaniApiKey: string | null): Promise<void> {
+    await set(ref(this.database, waniKaniApiKeyPath(this.user)), waniKaniApiKey);
   }
 
   public async getConversations(language: string): Promise<Conversation[]> {
@@ -418,6 +519,113 @@ export class DataState {
 
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     return transactionResult.committed && didSet;
+  }
+
+  public async getVocabularyEntries(language: string): Promise<VocabularyEntry[]> {
+    const snapshot = await get(ref(this.database, vocabularyPath(this.user, language)));
+    const vocabularyEntries: VocabularyEntry[] = [];
+    snapshot.forEach((vocabularyEntrySnapshot) => void vocabularyEntries.push(parseVocabularyEntry(vocabularyEntrySnapshot)));
+    return vocabularyEntries;
+  }
+
+  public async createVocabularyEntry(
+    language: string,
+    word: string,
+    translation: string,
+    notes: string,
+    tags: string[]): Promise<void> {
+    const vocabularyEntryId = encodeVocabularyEntryId(word);
+
+    const updates: Record<string, unknown> = {};
+    updates[vocabularyEntryId] = {
+      creationDate: serverTimestamp(),
+      translation,
+      notes,
+      tags: tags.join(" "),
+    };
+
+    await update(ref(this.database, vocabularyPath(this.user, language)), updates);
+  }
+
+  public async updateVocabularyEntry(
+    language: string,
+    word: string,
+    translation: string,
+    notes: string,
+    tags: string[]): Promise<void> {
+    const vocabularyEntryId = encodeVocabularyEntryId(word);
+
+    const updates: Record<string, unknown> = {};
+    updates.translation = translation;
+    updates.notes = notes;
+    updates.tags = tags.join(" ");
+
+    await update(ref(this.database, vocabularyEntryPath(this.user, language, vocabularyEntryId)), updates);
+  }
+
+  public async addVocabularyEntrySrsReview(language: string, word: string, date: Date, passed: boolean): Promise<void> {
+    const vocabularyEntryId = encodeVocabularyEntryId(word);
+
+    const updates: Record<string, unknown> = {};
+    updates[date.toUTCString()] = passed;
+
+    await update(ref(this.database, vocabularyEntryListeningSrsReviewsPath(this.user, language, vocabularyEntryId)), updates);
+  }
+
+  public async deleteVocabularyEntries(language: string, words: string[]): Promise<void> {
+    const updates: Record<string, unknown> = {};
+    for (const word of words) {
+      const vocabularyEntryId = encodeVocabularyEntryId(word);
+      updates[vocabularyEntryId] = null;
+    }
+
+    await update(ref(this.database, vocabularyPath(this.user, language)), updates);
+  }
+
+  public async getGrammarRuleEntries(language: string): Promise<GrammarRuleEntry[]> {
+    const snapshot = await get(ref(this.database, grammarRulesPath(this.user, language)));
+    const grammarRuleEntries: GrammarRuleEntry[] = [];
+    snapshot.forEach((grammarRuleEntrySnapshot) => void grammarRuleEntries.push(parseGrammarRuleEntry(grammarRuleEntrySnapshot)));
+    return grammarRuleEntries;
+  }
+
+  public async createGrammarRuleEntry(language: string, name: string, description: string): Promise<string> {
+    const grammarRuleId = push(ref(this.database, grammarRulesPath(this.user, language))).key
+      ?? doThrow(new Error("Failed to create grammar rule ID"));
+
+    const updates: Record<string, unknown> = {};
+    updates[grammarRuleId] = {
+      creationDate: serverTimestamp(),
+      name,
+      description,
+    };
+
+    await update(ref(this.database, grammarRulesPath(this.user, language)), updates);
+    return grammarRuleId;
+  }
+
+  public async updateGrammarRuleEntry(language: string, grammarRuleId: string, name: string, description: string): Promise<void> {
+    const updates: Record<string, unknown> = {};
+    updates.name = name;
+    updates.description = description;
+
+    await update(ref(this.database, grammarRuleEntryPath(this.user, language, grammarRuleId)), updates);
+  }
+
+  public async addGrammarRuleEntrySrsReview(language: string, grammarRuleId: string, date: Date, passed: boolean): Promise<void> {
+    const updates: Record<string, unknown> = {};
+    updates[date.toUTCString()] = passed;
+
+    await update(ref(this.database, grammarRuleEntryListeningSrsReviewsPath(this.user, language, grammarRuleId)), updates);
+  }
+
+  public async deleteGrammarRuleEntries(language: string, grammarRuleIds: string[]): Promise<void> {
+    const updates: Record<string, unknown> = {};
+    for (const grammarRuleId of grammarRuleIds) {
+      updates[grammarRuleId] = null;
+    }
+
+    await update(ref(this.database, grammarRulesPath(this.user, language)), updates);
   }
 
   public disconnect(): void {

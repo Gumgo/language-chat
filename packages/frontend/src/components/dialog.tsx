@@ -5,6 +5,7 @@ import { assert } from "utilities/errors";
 import { useEvent } from "utilities/useEvent";
 import { useStateRef } from "utilities/useStateRef";
 import { buildCompleteMappingGetter, classNames } from "utilities/utilities";
+import { TextInput } from "./textInput";
 
 export type DialogWidth = "Normal" | "Small" | "Unset";
 
@@ -315,6 +316,48 @@ export async function showOptionsDialog(
   }
 
   return await showDialog(OptionsDialogContent, clickOutsideResult, options) as number;
+}
+
+export async function showInputDialog(
+  title: string,
+  message: string,
+  initialInput: string,
+  options?: DialogOptions): Promise<string | null> {
+  function InputDialogContent(props: DialogContentProps): React.JSX.Element {
+    const setFocus = useCallback((element: HTMLButtonElement | null) => element?.focus(), []);
+    const [input, setInput] = useState(initialInput);
+
+    return (
+      <div className="input-dialog-container">
+        <h3>{title}</h3>
+        <div>{message}</div>
+        <TextInput value={input} onChangeValue={setInput} />
+        <div className="buttons">
+          <Button
+            type="button"
+            appearance="Standard"
+            color="Gray"
+            text="Cancel"
+            onClick={() => props.onClose(null)}
+          />
+          <Button
+            ref={setFocus}
+            type="button"
+            appearance="Standard"
+            color="Primary"
+            text="Accept"
+            onClick={() => props.onClose(input)}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return await showDialog(InputDialogContent, undefined, options) as string | null;
+}
+
+export async function showMessageDialog(title: string, message: string): Promise<void> {
+  await showOptionsDialog(title, message, [{ text: "OK", color: "Primary", defaultFocus: true }], 0);
 }
 
 export async function showErrorDialog(title: string, message: string): Promise<void> {

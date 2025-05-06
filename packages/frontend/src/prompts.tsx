@@ -1,4 +1,5 @@
 import { ChatMessage } from "api";
+import { StoryDifficulty, StoryMode } from "exercises/storyPracticeTypes";
 import { assert } from "utilities/errors";
 
 function getIntro(language: string): string {
@@ -124,4 +125,144 @@ export function getSummaryPrompt(settings: SummaryPromptSettings): string {
     + `text; do not surround it with any delimiters.`);
 
   return parts.join("\n\n");
+}
+
+export function getUseWordInSentenceProp(language: string, word: string): string {
+  return `Use the following ${language} word in a short, simple sentence (do not provide the English translation or pronunciation): ${word}`;
+}
+
+export interface StoryPracticePrompts {
+  generateStoryPrompt: string;
+  modifyStoryPrompt: string | null;
+  ssmlPrompt: string;
+  splitPrompt: string;
+  reviewPrompt: string;
+  additionalComponentsPrompt: string;
+}
+
+export function getStoryPracticePrompts(
+  language: string,
+  words: string[],
+  focusWords: string[],
+  mode: StoryMode,
+  difficulty: StoryDifficulty,
+): StoryPracticePrompts {
+  const storyType = mode === "Story" ? "story" : "dialog";
+  const additionalComponents = mode === "Story" ? "title" : "title and character introductions";
+
+  const generateStoryPromptParts: string[] = [];
+
+  const generateStoryPromptIntroParts: string[] = [];
+  generateStoryPromptIntroParts.push(`I am learning ${language} and I am trying to improve my listening skills.`);
+  generateStoryPromptIntroParts.push(`Please generate a short ${storyType} in ${language} which would take about 2-3 minutes to read.`);
+  if (mode === "Dialog") {
+    generateStoryPromptIntroParts.push(
+      `The dialog should be between two people. Each person can be either male or female. Before the dialog, list the gender of each person as it is required `
+      + `to select an appropriate text-to-speech voice. Additionally, provide a very brief introduction spoken by each character which includes the `
+      + `character's name and any relevant context to the story (for example: I am John, a firefighter). This introduction should be in ${language}.`);
+    generateStoryPromptIntroParts.push(
+      `This dialog will be read back by a text-to-speech system so do not include any additional text describing how the characters speak (e.g. "*in a quiet `
+      + `voice*") or any actions they are taking (e.g. *jogs while speaking*) as these will sound very out of place when they are read back. Only include the `
+      + `actual dialog spoken by the characters.`);
+  }
+  generateStoryPromptIntroParts.push(
+    `I use this method to practice quite often so, to avoid monotony, the story can be in any genre or about any topic. A few examples are adventure, science `
+    + `fiction, history, everyday life, folklore, but you do not need to limit yourself to these genres.`);
+  generateStoryPromptIntroParts.push(`Please also generate a title to go along with the ${storyType}.`);
+
+  generateStoryPromptParts.push(generateStoryPromptIntroParts.join(" "));
+
+  if (words.length > 0) {
+    generateStoryPromptParts.push(`I have currently learned the following words, so please try to restrict the ${storyType}'s content to this list:`);
+    generateStoryPromptParts.push(words.join("\n"));
+  }
+
+  if (focusWords.length > 0) {
+    generateStoryPromptParts.push(
+      `The following is a list of words that I am currently focused on learning so please try to include some or all of them in the ${storyType}:`);
+    generateStoryPromptParts.push(focusWords.join("\n"));
+  }
+
+  const generateStoryPrompt = generateStoryPromptParts.join("\n\n");
+
+  let modifyStoryPrompt: string | null = null;
+  if (words.length > 0) {
+    const easyCommand = difficulty === "Easy"
+      ? "You may also revise sentence structure and grammar as well. Please stick to simple, short sentences which avoid any advanced or complex grammar. "
+      : "";
+    modifyStoryPrompt = `I have not yet read the ${storyType} but it may be too challenging for my current level. Before I attempt, please review the list of `
+      + `words and rewrite/revise the ${storyType} to use as few words that are not on the list as possible (extremely common words and grammatical words are `
+      + `still acceptable). It is fine if you simplify or change details of the ${storyType} to make this possible. If some new words which are not listed in `
+      + `the provided word list are critical to the ${storyType}, please introduce them along with their English translations in a list before the revised `
+      + `${storyType}. ${easyCommand}In addition to revising the ${storyType} content, you may revise the ${additionalComponents} as well if needed.`;
+  }
+
+  const ssmlPromptParts: string[] = [];
+  ssmlPromptParts.push(
+    `This ${storyType} will be read back using text-to-speech, so please repeat back the ${storyType} content (but not the ${additionalComponents}) but with `
+    + `the addition of SSML tags. Do not include any additional leading or trailing text in your response. Use the following rules:`);
+  ssmlPromptParts.push("- Do not include a <speak> tag around the content (this will be manually added later)");
+  ssmlPromptParts.push("- Each sentence should be placed on a new line");
+  ssmlPromptParts.push("- Each sentence should be wrapped in a <s> tag");
+  ssmlPromptParts.push(
+    "- If relevant to the context or tone, a complete sentence can be wrapped in an <emphasis> tag using any of the following emphasis levels: strong, "
+    + "moderate, none, reduced");
+  if (mode === "Dialog") {
+    ssmlPromptParts.push(
+      "- Each character's dialog should NOT be prefixed with the character's name but should instead be wrapped in a <voice> tag with the 'name' attribute "
+      + "specified. The name should be either $CHARACTER1 or $CHARACTER2 (these strings will later be replaced with the selected voice names for each "
+      + "character so do not include any additional tags such as language or gender).");
+    ssmlPromptParts.push(
+      "- Each <voice> tag should surround exactly one sentence and should be on the same line as that sentence. A <voice> tag should NOT appear on its own "
+      + "line and should NOT wrap multiple sentences.");
+  }
+  ssmlPromptParts.push("- Make sure to escape any of the following characters using XML escape codes: \" & ' < >");
+
+  const ssmlPrompt = ssmlPromptParts.join("\n");
+
+  const splitPromptParts: string[] = [];
+  splitPromptParts.push(
+    `Next, take the output of your previous response (the ${storyType} content with the addition of SSML tags) and perform the following modifications (do not `
+    + `alter the text in any other way):`);
+  splitPromptParts.push(
+    `- Consider each sentence broken down into logical grammatical chunks. Each chunk should include at least one word (for example, a chunk should not `
+    + `consist of only a grammatical symbol such as a comma or period). Before each chunk, insert [[[$EXPLANATION]]], where $EXPLANATION is replaced with a `
+    + `brief English explanation of the chunk, describing what it means or what its role is in the sentence (do not add any extra spaces before [[[ or after `
+    + `]]]). The explanation should serve as a very rough translation of that chunk of the sentence but does not need to be nicely-worded English; it should `
+    + `more closely match how the concept is expressed in ${language} rather than in English. These should be fairly granular - a single chunk should ideally `
+    + `be relatively short and cover only a few words.`);
+
+  const splitPrompt = splitPromptParts.join("\n");
+
+  const reviewPrompt =
+    "The previous instructions I sent are very important and the program will break if any of them are not followed. Before moving forward, please review the "
+    + "output you provided and make sure each requirement is met without any errors. After doing this, repeat the output with any errors fixed. (Do not "
+    + "comment on whether you found any errors. For example, don't say 'I found and fixed 5 errors'. Simply send the results without any further comments.)";
+
+  const additionalComponentsPromptParts: string[] = [];
+  additionalComponentsPromptParts.push("Finally, in your next response, provide the following items in the exact format described as follows:");
+  additionalComponentsPromptParts.push(`- A line containing the text $TITLE followed by the title in ${language}`);
+  additionalComponentsPromptParts.push(`- A line containing the text $TITLE_TRANSLATION followed by an English translation of the title`);
+  if (mode === "Dialog") {
+    additionalComponentsPromptParts.push("- A line containing the text $CHARACTER1_GENDER followed by the gender of character 1, either MALE or FEMALE");
+    additionalComponentsPromptParts.push("- A line containing the text $CHARACTER1_INTRODUCTION followed by character 1's introduction sentence");
+    additionalComponentsPromptParts.push("- A line containing the text $CHARACTER2_GENDER followed by the gender of character 2, either MALE or FEMALE");
+    additionalComponentsPromptParts.push("- A line containing the text $CHARACTER2_INTRODUCTION followed by character 2's introduction sentence");
+  }
+  if (words.length > 0) {
+    additionalComponentsPromptParts.push(
+      `- For each new word introduced in your prior response, a line containing the text $NEW_WORD followed by $WORD|||$MEANING where $WORD is `
+      + `replaced with the ${language} word and $MEANING is replaced with the word's English translation`);
+  }
+
+  const additionalComponentsPrompt = additionalComponentsPromptParts.join("\n");
+
+  return {
+    generateStoryPrompt,
+    modifyStoryPrompt,
+    ssmlPrompt,
+    splitPrompt,
+    reviewPrompt,
+    additionalComponentsPrompt,
+  };
 }

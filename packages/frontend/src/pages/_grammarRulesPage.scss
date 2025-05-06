@@ -1,0 +1,20 @@
+@use "themeVariables" as *;
+
+.add-grammar-rule-entry-settings {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem;
+  align-items: center;
+
+  & .name {
+    text-align: right;
+  }
+
+  & .description {
+    height: 4rem;
+  }
+}
+
+.grammar-rule-description {
+  flex-grow: 1;
+}

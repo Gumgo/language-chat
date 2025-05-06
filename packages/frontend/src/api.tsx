@@ -45,6 +45,21 @@ export interface SpeechApiRequest {
   voice: string;
   speed: number;
   message: string;
+  ssml: boolean;
+}
+
+export interface SpeechApiResponse {
+  audioUrl: string;
+  timepointsUrl?: string;
+}
+
+export interface SpeechTimepoint {
+  markName: string;
+  timeSeconds: number;
+}
+
+export interface SpeechTimepoints {
+  timepoints: SpeechTimepoint[];
 }
 
 export async function chat(request: ChatApiRequest): Promise<ChatApiResponse> {
@@ -69,7 +84,7 @@ export async function listVoices(): Promise<ListVoicesApiResponse> {
 }
 
 // Returns URL of uploaded TTS clip
-export async function speech(request: SpeechApiRequest): Promise<string> {
+export async function speech(request: SpeechApiRequest): Promise<SpeechApiResponse> {
   const response = await fetch(
     "/api/v1/speech",
     {
@@ -79,6 +94,18 @@ export async function speech(request: SpeechApiRequest): Promise<string> {
     });
 
   return response.status >= 200 && response.status < 300
-    ? await response.text()
+    ? await response.json() as SpeechApiResponse
     : doThrow(new Error("Speech request failed"));
+}
+
+export async function getSpeechTimepoints(speechResponse: SpeechApiResponse): Promise<SpeechTimepoints> {
+  if (speechResponse.timepointsUrl === undefined) {
+    return { timepoints: [] };
+  }
+
+  const response = await fetch(speechResponse.timepointsUrl);
+
+  return response.status >= 200 && response.status < 300
+    ? await response.json() as SpeechTimepoints
+    : doThrow(new Error("Timepoints request failed"));
 }

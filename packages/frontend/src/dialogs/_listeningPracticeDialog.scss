@@ -1,0 +1,74 @@
+@use "themeVariables" as *;
+
+.listening-practice-reviews {
+  flex-grow: 1;
+  overflow: auto;
+
+  & .content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+
+    & .review {
+      display: flex;
+      flex-direction: column;
+
+      // Note: if there is no scrollbar, this margin doesn't need to be here, but I'm currently too lazy to bother with that right now
+      margin-right: 0.5rem;
+
+      & .word,
+      & .sentence {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 0.5rem;
+
+        & > span {
+          flex-grow: 1;
+        }
+
+        & .play-audio-button {
+          font-size: 2rem;
+        }
+      }
+
+      & .word > span {
+        font-weight: bold;
+      }
+
+      & .translation {
+        margin-left: 1rem;
+      }
+
+      & .sentence {
+        margin-left: 1rem;
+      }
+    }
+  }
+}
+
+.listening-practice-settings {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: auto 14rem;
+  align-items: center;
+
+  & .label {
+    text-align: right;
+    align-self: center;
+  }
+
+  & label > input[type="checkbox"] {
+    margin-right: 0.5em;
+  }
+
+  & .controls {
+    grid-column: 1 / span 2;
+    margin-left: auto;
+    margin-right: auto;
+
+    & .start-button {
+      font-size: 2rem;
+    }
+  }
+}

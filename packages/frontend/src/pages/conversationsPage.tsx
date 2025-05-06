@@ -195,6 +195,7 @@ export function ConversationsPage(props: ConversationsPageProps): React.JSX.Elem
       ? "Checked"
       : "Indeterminate";
 
+  // $TODO some items like top-bar should be unified into a component
   return (
     <div className="conversations-page">
       <div className="top-bar">

@@ -1,0 +1,15 @@
+.story-practice-settings {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: auto 14rem;
+  align-items: center;
+
+  & .label {
+    text-align: right;
+    align-self: center;
+  }
+
+  & label > input[type="checkbox"] {
+    margin-right: 0.5em;
+  }
+}

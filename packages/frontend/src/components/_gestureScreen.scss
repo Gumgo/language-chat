@@ -1,0 +1,58 @@
+@use "themeVariables" as *;
+
+.gesture-screen {
+  position: fixed;
+  z-index: 10000;
+
+  top: 0;
+  left: 0;
+
+  width: 100vw;
+  width: 100dvw;
+
+  height: 100vh;
+  height: 100dvh;
+
+  display: flex;
+  flex-direction: column;
+
+  background-color: $background-color-dark;
+
+  & .gesture-detection-area {
+    flex-grow: 1;
+    touch-action: none;
+    user-select: none;
+    position: relative;
+
+    & .message {
+      position: absolute;
+      width: 100%;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 3rem;
+      text-align: center;
+      color: #fff;
+    }
+
+    & > svg {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+
+      & > path {
+        stroke-width: 4px;
+        stroke: #fff;
+        fill: none;
+      }
+    }
+  }
+
+  & .bottom-controls {
+    padding: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+
+    background-color: $background-color-light;
+  }
+}

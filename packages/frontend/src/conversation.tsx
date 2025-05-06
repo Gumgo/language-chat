@@ -18,7 +18,6 @@ export interface ConversationSettings {
   model: Model;
   voice: string;
   speechSpeed: number;
-  autoPlayResponses: boolean;
   hideResponseText: boolean;
   mistakeExplanationLanguage: MistakeExplanationLanguage;
 }
@@ -34,7 +33,6 @@ export function useConversationSettings(
   const [model, setModel] = useLocalStorageState<Model>("model", (v) => v as Model, defaultModel);
   const [voice, setVoice] = useLocalStorageState<string>(`voice-${language}`, (v) => v, defaultVoice);
   const [speechSpeed, setSpeechSpeed] = useLocalStorageState<number>("speechSpeed", (v) => parseInt(v), 100);
-  const [autoPlayResponses, setAutoPlayResponses] = useLocalStorageState<boolean>("autoPlayResponses", (v) => v.trim().toLowerCase() === "true", false);
   const [hideResponseText, setHideResponseText] = useLocalStorageState<boolean>("hideResponseText", (v) => v.trim().toLowerCase() === "true", false);
   const [mistakeExplanationLanguage, setMistakeExplanationLanguage] = useLocalStorageState<MistakeExplanationLanguage>(
     "mistakeExplanationLanguage",
@@ -42,15 +40,14 @@ export function useConversationSettings(
     "English");
 
   const conversationSettings = React.useMemo<ConversationSettings>(
-    () => ({ model, voice, speechSpeed, autoPlayResponses, hideResponseText, mistakeExplanationLanguage }),
-    [model, voice, speechSpeed, autoPlayResponses, hideResponseText, mistakeExplanationLanguage]);
+    () => ({ model, voice, speechSpeed, hideResponseText, mistakeExplanationLanguage }),
+    [model, voice, speechSpeed, hideResponseText, mistakeExplanationLanguage]);
 
   const setConversationSettings = React.useCallback(
     (settings: ConversationSettings) => {
       setModel(settings.model);
       setVoice(settings.voice);
       setSpeechSpeed(settings.speechSpeed);
-      setAutoPlayResponses(settings.autoPlayResponses);
       setHideResponseText(settings.hideResponseText);
       setMistakeExplanationLanguage(settings.mistakeExplanationLanguage);
     },

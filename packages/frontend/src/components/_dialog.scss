@@ -1,6 +1,7 @@
 @use "themeVariables" as *;
 
 $dialog-viewport-padding: 1rem;
+$dialog-padding: 1rem;
 $dialog-transition-duration: 0.125s;
 $dialog-transition-timing-function: ease-out;
 
@@ -41,7 +42,10 @@ $dialog-transition-timing-function: ease-out;
   top: 50%;
   left: 50%;
 
-  padding: 1rem;
+  max-height: calc(100vh - $dialog-viewport-padding * 2);
+  max-height: calc(100dvh - $dialog-viewport-padding * 2);
+
+  padding: $dialog-padding;
 
   background-color: $background-color-light;
   border-radius: $container-border-radius;
@@ -57,10 +61,12 @@ $dialog-transition-timing-function: ease-out;
 
   &.width-normal {
     width: calc(min(40rem, 100vw - $dialog-viewport-padding * 2));
+    width: calc(min(40rem, 100dvw - $dialog-viewport-padding * 2));
   }
 
   &.width-small {
     width: calc(min(25rem, 100vw - $dialog-viewport-padding * 2));
+    width: calc(min(25rem, 100dvw - $dialog-viewport-padding * 2));
   }
 
   &.visible {
@@ -77,6 +83,25 @@ $dialog-transition-timing-function: ease-out;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+
+  max-height: calc(100vh - ($dialog-viewport-padding + $dialog-padding) * 2);
+  max-height: calc(100dvh - ($dialog-viewport-padding + $dialog-padding) * 2);
+
+  & .buttons {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+    justify-content: flex-end;
+  }
+}
+
+.input-dialog-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  max-height: calc(100vh - ($dialog-viewport-padding + $dialog-padding) * 2);
+  max-height: calc(100dvh - ($dialog-viewport-padding + $dialog-padding) * 2);
 
   & .buttons {
     display: flex;

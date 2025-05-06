@@ -7,6 +7,7 @@ type CreationTimestamp extends Number {
 // Note: Any is used as a bug workaround (the actual type needs to be specified in the rule tree below)
 
 type User {
+  waniKaniApiKey: String | Null,
   languages: Any | Null // Bug workaround, Any is Language[]
 }
 
@@ -48,9 +49,29 @@ type ConversationMessages {
   messages: Message[]     // List of messages sent/received in this conversation. The initial message is the prompt.
 }
 
+type VocabularyEntry {
+  creationDate: CreationTimestamp,
+  translation: String,
+  notes: String,
+  tags: String, // This is just a string of space-separated tags for simplicity
+  listeningSrsReviews: Boolean[]  // Maps review date -> passed
+}
+
+type GrammarRuleEntry {
+  creationDate: CreationTimestamp,
+  name: String,
+  description: String,
+  listeningSrsReviews: Boolean[]  // Maps review date -> passed
+}
+
 path /users {
   /{userId} is User {
     read() { isCurrentUser(userId) }
+
+    /waniKaniApiKey {
+      read() { isCurrentUser(userId) }
+      write() { isCurrentUser(userId) }
+    }
 
     /languages/{language} is Language {
       /conversations/{conversationId} is Conversation {
@@ -65,6 +86,14 @@ path /users {
         delete() { isCurrentUser(userId) && this.parent().parent().conversations[conversationId] == null }
         update() { isCurrentUser(userId) }
         validate() { this.parent().parent().conversations[conversationId] != null && ((this.lastMessageId.length == 0 && this.messages == null) || (this.lastMessageId.length > 0 && this.messages[this.lastMessageId] != null)) }
+      }
+
+      /vocabulary/{vocabularyEntryId} is VocabularyEntry {
+        write() { isCurrentUser(userId) }
+      }
+
+      /grammarRules/{grammarRuleEntryId} is GrammarRuleEntry {
+        write() { isCurrentUser(userId) }
       }
     }
   }

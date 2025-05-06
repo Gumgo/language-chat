@@ -3,15 +3,23 @@
 @use "components/checkbox";
 @use "components/dialog";
 @use "components/focusTrap";
+@use "components/gestureScreen";
 @use "components/input";
 @use "components/loadingDots";
 @use "components/select";
 @use "components/textArea";
 @use "dialogs/conversationSettingsDialog";
+@use "dialogs/grammarRuleActionsDialog";
+@use "dialogs/listeningPracticeDialog";
+@use "dialogs/storyPracticeDialog";
+@use "dialogs/vocabularyActionsDialog";
 @use "pages/conversationPage";
 @use "pages/conversationsPage";
-@use "pages/startConversationPage";
+@use "pages/grammarRulesPage";
 @use "pages/homePage";
+@use "pages/listPage";
+@use "pages/startConversationPage";
+@use "pages/vocabularyPage";
 @use "theme";
 @use "themeVariables" as *;
 

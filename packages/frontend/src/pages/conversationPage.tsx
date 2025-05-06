@@ -155,13 +155,14 @@ function ActiveConversationPage(props: ActiveConversationPageProps): React.JSX.E
   const [conversationBubbles, setConversationBubbles] = React.useState<ConversationBubbleEntry[]>([]);
 
   const generateAudioUrl = useEvent(
-    (audioIdentifier: AudioIdentifier) => speech(
+    async (audioIdentifier: AudioIdentifier) => (await speech(
       {
         language: audioIdentifier.language,
         voice: audioIdentifier.voice,
         speed: audioIdentifier.speed,
         message: messages.find((v) => v.id === audioIdentifier.messageId)?.content ?? doThrow(new Error("Message not found")),
-      }));
+        ssml: false,
+      })).audioUrl);
 
   function getAudioIdentifierKey(audioIdentifier: AudioIdentifier): string {
     return [audioIdentifier.language, audioIdentifier.voice, audioIdentifier.speed.toString(), audioIdentifier.messageId].join("|");

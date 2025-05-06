@@ -47,7 +47,6 @@ export async function showConversationSettingsDialog(
           [...voicesByGender.entries()].map((v) => [v[0], v[0] === initialVoice.gender ? initialVoice.name : v[1][0]])));
 
       const [speechSpeed, setSpeechSpeed] = React.useState(conversationSettings.speechSpeed);
-      const [autoPlayResponses, setAutoPlayResponses] = React.useState(conversationSettings.autoPlayResponses);
       const [hideResponseText, setHideResponseText] = React.useState(conversationSettings.hideResponseText);
       const [mistakeExplanationLanguage, setMistakeExplanationLanguage] = React.useState(conversationSettings.mistakeExplanationLanguage);
 
@@ -58,7 +57,6 @@ export async function showConversationSettingsDialog(
         model,
         voice: selectedVoice,
         speechSpeed,
-        autoPlayResponses,
         hideResponseText,
         mistakeExplanationLanguage,
       };
@@ -87,11 +85,6 @@ export async function showConversationSettingsDialog(
             <Select value={speechSpeed} onChange={(e) => setSpeechSpeed(parseInt(e.target.value))}>
               {speechSpeedValues.map((v) => <option key={v} value={v}>{`${v}%`}</option>)}
             </Select>
-            <div />
-            <label>
-              <Checkbox checked={autoPlayResponses} onChange={setAutoPlayResponses} />
-              Auto-play responses
-            </label>
             <div />
             <label>
               <Checkbox checked={hideResponseText} onChange={setHideResponseText} />

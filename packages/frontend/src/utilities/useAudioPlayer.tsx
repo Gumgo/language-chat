@@ -1,7 +1,8 @@
 import * as React from "react";
 import { assert } from "utilities/errors";
+import { useIsMounted } from "utilities/useIsMounted";
 import { useStateRef } from "utilities/useStateRef";
-import { useIsMounted } from "./useIsMounted";
+import { logError } from "./logger";
 
 export type AudioState = "Generating" | "Ready" | "Error";
 
@@ -69,7 +70,7 @@ export function useAudioPlayer<TAudioIdentifier>(
             })
           .catch(
             (error: unknown) => {
-              console.log(error);
+              logError((error as Error).message);
               if (!isMounted.current) {
                 return;
               }
@@ -121,6 +122,11 @@ export function useAudioPlayer<TAudioIdentifier>(
         () => {
           setPlayingAudioIdentifier(null);
           audioElementStop();
+        });
+      audioElement.current.addEventListener(
+        "pause",
+        () => {
+          setPlayingAudioIdentifier(null);
         });
 
       return () => {

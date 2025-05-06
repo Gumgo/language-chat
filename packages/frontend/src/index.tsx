@@ -8,13 +8,22 @@ import { getDatabase } from "firebase/database";
 import { supportedLanguages } from "language";
 import { ConversationPage } from "pages/conversationPage";
 import { ConversationsPage } from "pages/conversationsPage";
+import { GrammarRulesPage } from "pages/grammarRulesPage";
 import { HomePage } from "pages/homePage";
 import { StartConversationPage } from "pages/startConversationPage";
+import { VocabularyPage } from "pages/vocabularyPage";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { logError } from "utilities/logger";
 import { useIsMounted } from "utilities/useIsMounted";
+
+// $TODO:
+// - Add "Extra instructions" box for conversations
+// - Add a speech page with actions:
+//   - Say this word (use the high quality voices)
+//   - Use this word in a sentence (generate a sentence automatically)
+//   - Button to download the audio clip
 
 const firebaseOptions: FirebaseOptions = {
   apiKey: "AIzaSyDR10RFmWNcWH9zhamlgA5V5fwpGIQdW8E",
@@ -27,7 +36,7 @@ const firebaseOptions: FirebaseOptions = {
   measurementId: "G-YMHBSSFTPN",
 };
 
-const useEmulatorDatabase = window.location.hostname === "127.0.0.1";
+const useEmulatorDatabase = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
 if (useEmulatorDatabase) {
   firebaseOptions.databaseURL = "http://127.0.0.1:9000/?ns=language-chat-default-rtdb";
 }
@@ -50,7 +59,7 @@ function LoggedInWithVoices(props: LoggedInWithVoicesProps): React.JSX.Element {
     <Routes>
       <Route
         index
-        element={<HomePage auth={auth} />}
+        element={<HomePage auth={auth} dataState={props.loginState.dataState} />}
       />
       {
         supportedLanguages.map(
@@ -67,6 +76,14 @@ function LoggedInWithVoices(props: LoggedInWithVoicesProps): React.JSX.Element {
               <Route
                 path={`/${language}/conversations/:conversationId`}
                 element={<ConversationPage dataState={props.loginState.dataState} language={language} voices={props.voices} />}
+              />
+              <Route
+                path={`/${language}/vocabulary`}
+                element={<VocabularyPage dataState={props.loginState.dataState} language={language} voices={props.voices} />}
+              />
+              <Route
+                path={`/${language}/grammar-rules`}
+                element={<GrammarRulesPage dataState={props.loginState.dataState} language={language} voices={props.voices} />}
               />
             </React.Fragment>
           ))
@@ -91,9 +108,9 @@ function LoggedIn(props: LoggedInProps): React.JSX.Element {
     try {
       const response = await listVoices();
 
-      // Only allow the Standard and Wavenet voices (the others are more expensive)
+      // Only allow the Wavenet voices (the others are more expensive and Standard is low quality)
       function filterVoices(allVoices: ListVoicesApiResponseVoice[]): ListVoicesApiResponseVoice[] {
-        const filters = ["Standard", "Wavenet"];
+        const filters = ["Wavenet"];
         return allVoices.filter((voice) => filters.some((filter) => voice.name.includes(filter)));
       }
 

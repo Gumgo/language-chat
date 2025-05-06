@@ -1,5 +1,6 @@
-import { TextToSpeechClient } from "@google-cloud/text-to-speech";
+import { protos, v1beta1 } from "@google-cloud/text-to-speech";
 import * as ajv from "ajv";
+import assert from "assert";
 import * as bodyParser from "body-parser";
 import { createHash } from "crypto";
 import express from "express";
@@ -36,7 +37,7 @@ app.use(
 
 interface Globals {
   openAi: OpenAI;
-  textToSpeechClient: TextToSpeechClient;
+  textToSpeechClient: v1beta1.TextToSpeechClient;
 }
 
 let globals: Globals | null = null;
@@ -72,7 +73,7 @@ app.use(
 
       globals = {
         openAi: new OpenAI({ apiKey: openAiApiKey, project: openAiProjectId }),
-        textToSpeechClient: new TextToSpeechClient({ keyFile: "./language-chat-service-account.json" }),
+        textToSpeechClient: new v1beta1.TextToSpeechClient({ keyFile: "./language-chat-service-account.json" }),
       };
     }
 
@@ -85,6 +86,7 @@ app.use(
 
 const languageCodesFromLanguages: ReadonlyMap<string, string> = new Map<string, string>(
   [
+    ["English", "en-US"],
     ["Spanish", "es-US"],
     ["Japanese", "ja-JP"],
     ["French", "fr-FR"],
@@ -172,6 +174,21 @@ interface SpeechApiRequest {
   voice: string;
   speed: number;
   message: string;
+  ssml: boolean;
+}
+
+interface SpeechApiResponse {
+  audioUrl: string;
+  timepointsUrl?: string;
+}
+
+interface SpeechTimepoint {
+  markName: string;
+  timeSeconds: number;
+}
+
+interface SpeechTimepoints {
+  timepoints: SpeechTimepoint[];
 }
 
 const speechApiRequestSchema: ajv.JSONSchemaType<SpeechApiRequest> = {
@@ -192,8 +209,11 @@ const speechApiRequestSchema: ajv.JSONSchemaType<SpeechApiRequest> = {
     message: {
       type: "string",
     },
+    ssml: {
+      type: "boolean",
+    },
   },
-  required: ["language", "voice", "speed", "message"],
+  required: ["language", "voice", "speed", "message", "ssml"],
   additionalProperties: false,
 };
 
@@ -332,25 +352,30 @@ app.post(
       body.voice,
       body.speed.toString(),
       body.message,
+      body.ssml.toString(),
     ];
 
     const hashInput = hashInputs.join("|");
     const hash = createHash("sha256").update(hashInput).digest("base64url");
-    const storagePath = `speech/${hash}.mp3`;
-    const storageFile = storageBucket.file(storagePath);
+    const audioStoragePath = `speech/${hash}.mp3`;
+    const audioStorageFile = storageBucket.file(audioStoragePath);
+    const timepointsStoragePath = `speech/${hash}.timepoints`;
+    const timepointsStorageFile = storageBucket.file(timepointsStoragePath);
 
-    const [fileExists] = await storageFile.exists();
+    const [fileExists] = await audioStorageFile.exists();
     if (!fileExists) {
       // The file doesn't yet exist so generate and upload it
       const [response] = await getGlobals().textToSpeechClient.synthesizeSpeech(
         {
           input: {
-            text: body.message,
+            text: !body.ssml ? body.message : undefined,
+            ssml: body.ssml ? body.message : undefined,
           },
           voice: {
             languageCode,
             name: body.voice,
           },
+          enableTimePointing: body.ssml ? [protos.google.cloud.texttospeech.v1beta1.SynthesizeSpeechRequest.TimepointType.SSML_MARK] : undefined,
           audioConfig: {
             audioEncoding: "MP3",
             speakingRate: body.speed * 0.01,
@@ -362,12 +387,34 @@ app.post(
         return;
       }
 
-      await storageFile.save(Buffer.from(response.audioContent), { contentType: "audio/mpeg" });
+      const promises = [audioStorageFile.save(Buffer.from(response.audioContent), { contentType: "audio/mpeg" })];
+
+      if (body.ssml) {
+        const timepoints: SpeechTimepoints = {
+          timepoints: (response.timepoints ?? [])
+            .filter((v) => v.markName !== null && v.markName !== undefined && v.timeSeconds !== null && v.timeSeconds !== undefined)
+            .map(
+              (v) => {
+                assert(v.markName !== null && v.markName !== undefined);
+                assert(v.timeSeconds !== null && v.timeSeconds !== undefined);
+                return { markName: v.markName, timeSeconds: v.timeSeconds };
+              }),
+        };
+
+        const timepointsJson = JSON.stringify(timepoints);
+        promises.push(timepointsStorageFile.save(timepointsJson, { contentType: "application/json" }));
+      }
+
+      await Promise.all(promises);
     }
 
+    const response: SpeechApiResponse = {
+      audioUrl: await getDownloadURL(audioStorageFile),
+      timepointsUrl: body.ssml ? await getDownloadURL(timepointsStorageFile) : undefined,
+    };
+
     // Note: 201 is "created" and technically we may not create the resource if it's already cached but that shouldn't cause issues
-    const downloadUrl = await getDownloadURL(storageFile);
-    res.status(201).send(downloadUrl);
+    res.status(201).send(response);
   });
 
 export const api = functions.https.onRequest(app);

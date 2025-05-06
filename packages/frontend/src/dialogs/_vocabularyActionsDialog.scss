@@ -1,0 +1,12 @@
+.vocabulary-actions {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+
+  & > button {
+    font-size: 4rem;
+  }
+}

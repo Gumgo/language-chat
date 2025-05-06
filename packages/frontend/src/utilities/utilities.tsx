@@ -19,6 +19,14 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+export function *iterateWithIndex<T>(iterable: Iterable<T>): Iterable<[T, number]> {
+  let i = 0;
+  for (const v of iterable) {
+    yield [v, i];
+    i++;
+  }
+}
+
 export function classNames(...values: (string | null | undefined | false)[]): string {
   return values.filter((v) => typeof v === "string").join(" ");
 }
@@ -59,4 +67,8 @@ export function buildCompleteMappingGetter<TKey extends { toString(): string }, 
   }
 
   return getValue;
+}
+
+export function sleep(durationMilliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(() => resolve(), durationMilliseconds));
 }
