@@ -1,15 +1,14 @@
 import { chat, ChatMessage, getSpeechTimepoints, ListVoicesApiResponseVoice, Model, speech, VoiceGender } from "api";
 import { Button } from "components/button";
-import { Gesture, GestureScreen } from "components/gestureScreen";
+import { GestureScreen, GestureScreenBottomControls, useGestureDetector } from "components/gestureScreen";
 import { VocabularyEntry } from "dataState";
-import { StoryMode } from "exercises/storyPracticeTypes";
+import { StoryDifficulty, StoryMode } from "exercises/storyPracticeTypes";
 import { getStoryPracticePrompts } from "prompts";
 import * as React from "react";
-import { assert, doThrow } from "utilities/errors";
+import { doThrow } from "utilities/errors";
 import { logError } from "utilities/logger";
 import { generateIsolatedWordSpeechUrl, trimAudioPlaybackUrl } from "utilities/speechUtilities";
 import { useAudioPlayer } from "utilities/useAudioPlayer";
-import { useRefLazy } from "utilities/useRefLazy";
 import { iterateWithIndex, sleep } from "utilities/utilities";
 
 interface StoryPracticeProps {
@@ -21,7 +20,7 @@ interface StoryPracticeProps {
   words: VocabularyEntry[];
   focusWords: VocabularyEntry[];
   storyMode: StoryMode;
-  difficulty: "Normal" | "Easy";
+  difficulty: StoryDifficulty;
   onStop: () => void;
 }
 
@@ -40,21 +39,7 @@ export function StoryPractice(props: StoryPracticeProps): React.JSX.Element {
     },
     [audioPlayer.playingAudioIdentifier]);
 
-  // Note: null signifies stop
-  interface GesturePromise {
-    promise: Promise<Gesture | null>;
-    resolve: (result: Gesture | null) => void;
-  }
-
-  function createGesturePromise(): GesturePromise {
-    let resolve: ((result: Gesture | null) => void) | null = null;
-    const promise = new Promise<Gesture | null>((resolveInner) => { resolve = resolveInner; });
-
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    assert(resolve !== null);
-    return { promise, resolve };
-  }
-  const gesturePromise = useRefLazy<GesturePromise>(() => createGesturePromise());
+  const gestureDetectorData = useGestureDetector();
 
   async function run(): Promise<void> {
     const splitterToken = "|||";
@@ -523,18 +508,18 @@ export function StoryPractice(props: StoryPracticeProps): React.JSX.Element {
       }
 
       const actionPromise = (async () => { await action(); actionComplete = true; })();
-      let gesturePromiseLocal = gesturePromise.current.promise;
+      let gesturePromise = gestureDetectorData.gesturePromise.current;
 
       while (true) {
         setDisplayMessage(currentAudioNode.label);
 
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (!actionComplete) {
-          await Promise.any([actionPromise, gesturePromiseLocal]);
+          await Promise.any([actionPromise, gesturePromise]);
         }
 
         // Wait for the next gesture
-        const gesture = await gesturePromiseLocal;
+        const gesture = await gesturePromise;
         let newAudioNode: AudioNode | null = null;
         if (gesture === null) {
           actionTerminated = true;
@@ -564,19 +549,13 @@ export function StoryPractice(props: StoryPracticeProps): React.JSX.Element {
         }
 
         // The gesture was ignored, loop to wait for a different gesture
-        gesturePromiseLocal = gesturePromise.current.promise;
+        gesturePromise = gestureDetectorData.gesturePromise.current;
       }
     }
   }
 
-  function handleDetectGesture(gesture: Gesture): void {
-    gesturePromise.current.resolve(gesture);
-    gesturePromise.current = createGesturePromise();
-  }
-
   function handleStop(): void {
-    gesturePromise.current.resolve(null);
-    gesturePromise.current = createGesturePromise();
+    gestureDetectorData.handleStopGestureDetection();
     props.onStop();
   }
 
@@ -596,14 +575,16 @@ export function StoryPractice(props: StoryPracticeProps): React.JSX.Element {
     []);
 
   return (
-    <GestureScreen onDetectGesture={handleDetectGesture} message={displayMessage}>
-      <Button
-        type="button"
-        appearance="Standard"
-        color="Gray"
-        text="Stop"
-        onClick={handleStop}
-      />
+    <GestureScreen onDetectGesture={gestureDetectorData.handleDetectGesture} message={displayMessage}>
+      <GestureScreenBottomControls>
+        <Button
+          type="button"
+          appearance="Standard"
+          color="Gray"
+          text="Stop"
+          onClick={handleStop}
+        />
+      </GestureScreenBottomControls>
     </GestureScreen>
   );
 }

@@ -5,12 +5,15 @@ import { TextArea } from "components/textArea";
 import { TextInput } from "components/textInput";
 import { DataState, VocabularyEntry } from "dataState";
 import { showListeningPracticeDialog } from "dialogs/listeningPracticeDialog";
+import { showSrsStatsDialog } from "dialogs/srsStatsDialog";
 import { showStoryPracticeDialog } from "dialogs/storyPracticeDialog";
 import { showVocabularyActionsDialog } from "dialogs/vocabularyActionsDialog";
 import { ListPage, ListPageListEntryData } from "pages/listPage";
 import * as React from "react";
 import { doThrow } from "utilities/errors";
 import { logError } from "utilities/logger";
+import { QueryableItem, runQuery } from "utilities/query";
+import { calculateSrsStats } from "utilities/srs";
 import { useIsMounted } from "utilities/useIsMounted";
 import { fetchWaniKaniData, initializeWaniKaniVocabularyEntry } from "utilities/waniKani";
 
@@ -39,74 +42,18 @@ function fixupTags(rawTags: string): string[] {
     .filter((tag) => tag.length > 0);
 }
 
-function runSearchQuery(vocabularyEntries: VocabularyEntry[], searchQuery: string, filterDate: Date): VocabularyEntry[] {
-  const searchTextParts = searchQuery.trim().toLocaleLowerCase().split(" ");
-  if (searchTextParts.length === 0) {
-    return vocabularyEntries;
-  }
-
-  const words: string[] = [];
-  const includeTags: string[] = [];
-  const excludeTags: string[] = [];
-  const includeNewerThan: number[] = [];
-  const includeOlderThan: number[] = [];
-  const excludeNewerThan: number[] = [];
-  const excludeOlderThan: number[] = [];
-  for (const part of searchTextParts) {
-    if (part.startsWith("+")) {
-      const remaining = part.substring(1);
-      if (remaining.startsWith("<")) {
-        const days = parseFloat(remaining.substring(1));
-        if (!isNaN(days) && days >= 0) {
-          includeOlderThan.push(days);
-        }
-      } else if (remaining.startsWith(">")) {
-        const days = parseFloat(remaining.substring(1));
-        if (!isNaN(days) && days >= 0) {
-          includeNewerThan.push(days);
-        }
-      } else {
-        includeTags.push(remaining);
+function runVocabularyQuery(vocabularyEntries: VocabularyEntry[], searchQuery: string, filterDate: Date): number[] {
+  const queryableItems = vocabularyEntries.map<QueryableItem>(
+    (entry) => (
+      {
+        searchableText: [entry.word, entry.translation],
+        tags: entry.tags,
+        creationDate: entry.creationDate,
+        srsStrength: entry.listeningSrsReviews.size === 0 ? null : calculateSrsStats(entry.listeningSrsReviews, filterDate).strength,
       }
-    } else if (part.startsWith("-")) {
-      const remaining = part.substring(1);
-      if (remaining.startsWith("<")) {
-        const days = parseFloat(remaining.substring(1));
-        if (!isNaN(days) && days >= 0) {
-          excludeOlderThan.push(days);
-        }
-      } else if (remaining.startsWith(">")) {
-        const days = parseFloat(remaining.substring(1));
-        if (!isNaN(days) && days >= 0) {
-          excludeNewerThan.push(days);
-        }
-      } else {
-        excludeTags.push(remaining);
-      }
-    } else {
-      words.push(part);
-    }
-  }
+    ));
 
-  const millisecondsPerDay = 1000 * 60 * 60 * 24;
-  return vocabularyEntries.filter(
-    (entry) => {
-      if (excludeTags.some((tag) => entry.tags.includes(tag))
-        || excludeNewerThan.some((days) => entry.creationDate.getTime() > filterDate.getTime() - days * millisecondsPerDay)
-        || excludeOlderThan.some((days) => entry.creationDate.getTime() < filterDate.getTime() - days * millisecondsPerDay)) {
-        return false;
-      }
-
-      if (includeTags.some((tag) => entry.tags.includes(tag))
-        || includeNewerThan.some((days) => entry.creationDate.getTime() > filterDate.getTime() - days * millisecondsPerDay)
-        || includeOlderThan.some((days) => entry.creationDate.getTime() < filterDate.getTime() - days * millisecondsPerDay)) {
-        return true;
-      }
-
-      const wordLower = entry.word.toLocaleLowerCase();
-      const translationLower = entry.translation.toLocaleLowerCase();
-      return words.some((word) => wordLower.includes(word) || translationLower.includes(word));
-    });
+  return runQuery(queryableItems, searchQuery, filterDate);
 }
 
 interface VocabularyEntryDetailsProps {
@@ -405,18 +352,26 @@ export function VocabularyPage(props: VocabularyPageProps): React.JSX.Element {
       void showStoryPracticeDialog(
         props.language,
         props.voices,
-        (query) => runSearchQuery(vocabularyEntries ?? [], query, new Date()));
+        (query) => {
+          if (vocabularyEntries === null) {
+            return [];
+          }
+
+          return runVocabularyQuery(vocabularyEntries, query, new Date()).map((i) => vocabularyEntries[i]);
+        });
       break;
+
+    case "SrsStats":
+      void showSrsStatsDialog((vocabularyEntries ?? []).map((v) => ({ id: v.word, reviews: v.listeningSrsReviews })), new Date());
     }
   }
 
   const listPageListEntries = React.useMemo<ListPageListEntryData[] | null>(
-    () => vocabularyEntries?.map((v) => ({ id: v.word, title: v.word, details: v.translation, data: v })) ?? null,
+    () => vocabularyEntries?.map((v) => ({ id: v.word, title: v.word, details: v.translation, srsReviews: v.listeningSrsReviews, data: v })) ?? null,
     [vocabularyEntries]);
 
   function runSearchQueryWrapper(entries: ListPageListEntryData[], searchQuery: string, filterDate: Date): ListPageListEntryData[] {
-    const results = new Set(runSearchQuery(entries.map((v) => v.data as VocabularyEntry), searchQuery, filterDate));
-    return entries.filter((v) => results.has(v.data as VocabularyEntry));
+    return runVocabularyQuery(entries.map((v) => v.data as VocabularyEntry), searchQuery, filterDate).map((i) => entries[i]);
   }
 
   return (

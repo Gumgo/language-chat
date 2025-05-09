@@ -1,0 +1,17 @@
+.srs-stats-dialog {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  align-self: center;
+  text-align: center;
+
+  & .title {
+    font-weight: bold;
+  }
+
+  & .ready-for-review {
+    grid-column: 1 / span 2;
+  }
+}

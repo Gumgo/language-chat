@@ -1,21 +1,19 @@
-import { ListVoicesApiResponseVoice, Model, modelValues } from "api";
+import { ListVoicesApiResponseVoice, Model } from "api";
 import { Button } from "components/button";
 import { showDialog } from "components/dialog";
-import { Select } from "components/select";
-import { TextInput } from "components/textInput";
 import { VocabularyEntry } from "dataState";
 import { StoryPractice } from "exercises/storyPractice";
 import { storyDifficulties, StoryDifficulty, StoryMode, storyModes } from "exercises/storyPracticeTypes";
 import * as React from "react";
 import { doThrow } from "utilities/errors";
 import { useLocalStorageState } from "utilities/useLocalStorage";
+import { DialogSettingsGrid, EnumDialogSetting, ModelSelect, SpeechSpeedSelect, WordsQuery } from "dialogs/commonDialogComponents";
 
 const defaultModel: Model = "gpt-4o";
-const speechSpeedValues = [50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
 const defaultWordsQuery = "";
-const defaultFocusWordsQuery = "+>14d";
+const defaultFocusWordsQuery = "+age>14";
 
-// !!! make the ability to save and re-play stories
+// $TODO make the ability to save and re-play stories
 export async function showStoryPracticeDialog(
   language: string,
   voices: Map<string, ListVoicesApiResponseVoice[]>,
@@ -44,32 +42,14 @@ export async function showStoryPracticeDialog(
       return (
         <div className="options-dialog-container">
           <h3>Listening practice</h3>
-          <div className="story-practice-settings">
-            <div className="label">Model</div>
-            <Select value={model} onChange={(e) => setModel(e.target.value as Model)}>
-              {modelValues.map((v) => <option key={v} value={v}>{v}</option>)}
-            </Select>
-            <div className="label">Speech speed</div>
-            <Select value={speechSpeed} onChange={(e) => setSpeechSpeed(parseInt(e.target.value))}>
-              {speechSpeedValues.map((v) => <option key={v} value={v}>{`${v}%`}</option>)}
-            </Select>
-            <div className="label">Words query</div>
-            <TextInput value={wordsQuery} onChangeValue={setWordsQuery} />
-            <div />
-            <div>{vocabularyEntries.length} {vocabularyEntries.length === 1 ? "result" : "results"}</div>
-            <div className="label">Focus words query</div>
-            <TextInput value={focusWordsQuery} onChangeValue={setFocusWordsQuery} />
-            <div />
-            <div>{focusVocabularyEntries.length} {focusVocabularyEntries.length === 1 ? "result" : "results"}</div>
-            <div className="label">Mode</div>
-            <Select value={storyMode} onChange={(e) => setStoryMode(e.target.value as StoryMode)}>
-              {storyModes.map((v) => <option key={v} value={v}>{v}</option>)}
-            </Select>
-            <div className="label">Difficulty</div>
-            <Select value={difficulty} onChange={(e) => setDifficulty(e.target.value as StoryDifficulty)}>
-              {storyDifficulties.map((v) => <option key={v} value={v}>{v}</option>)}
-            </Select>
-          </div>
+          <DialogSettingsGrid>
+            <ModelSelect model={model} setModel={setModel} />
+            <SpeechSpeedSelect speechSpeed={speechSpeed} setSpeechSpeed={setSpeechSpeed} />
+            <WordsQuery title="Words query" wordsQuery={wordsQuery} setWordsQuery={setWordsQuery} resultCount={vocabularyEntries.length} />
+            <WordsQuery title="Focus words query" wordsQuery={focusWordsQuery} setWordsQuery={setFocusWordsQuery} resultCount={focusVocabularyEntries.length} />
+            <EnumDialogSetting<StoryMode> title="Mode" values={storyModes} value={storyMode} setValue={setStoryMode} />
+            <EnumDialogSetting<StoryDifficulty> title="Difficulty" values={storyDifficulties} value={difficulty} setValue={setDifficulty} />
+          </DialogSettingsGrid>
           <div className="buttons">
             <Button
               type="button"

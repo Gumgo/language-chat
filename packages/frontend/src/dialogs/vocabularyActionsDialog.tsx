@@ -1,4 +1,4 @@
-import { faBook, faCopy, faEarListen } from "@fortawesome/free-solid-svg-icons";
+import { faBook, faChartSimple, faCopy, faEarListen } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "components/button";
 import { showDialog } from "components/dialog";
 import * as React from "react";
@@ -6,7 +6,8 @@ import * as React from "react";
 export type VocabularyAction =
   | "CopySelectedWords"
   | "ListeningPractice"
-  | "StoryPractice";
+  | "StoryPractice"
+  | "SrsStats";
 
 export async function showVocabularyActionsDialog(selectedVocabularyWordCount: number): Promise<VocabularyAction | null> {
   const result = await showDialog(
@@ -39,6 +40,14 @@ export async function showVocabularyActionsDialog(selectedVocabularyWordCount: n
               icon={faBook}
               tooltip="Story practice"
               onClick={() => dialogProps.onClose("StoryPractice")}
+            />
+            <Button
+              type="button"
+              appearance="IconOnly"
+              color="Primary"
+              icon={faChartSimple}
+              tooltip="SRS stats"
+              onClick={() => dialogProps.onClose("SrsStats")}
             />
           </div>
           <div className="buttons">

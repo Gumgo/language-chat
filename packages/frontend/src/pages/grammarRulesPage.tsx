@@ -3,72 +3,43 @@ import { Button } from "components/button";
 import { showDialog, showErrorDialog, showOptionsDialog } from "components/dialog";
 import { TextArea } from "components/textArea";
 import { TextInput } from "components/textInput";
-import { DataState, GrammarRuleEntry } from "dataState";
+import { DataState, GrammarRuleEntry, VocabularyEntry } from "dataState";
 import { showGrammarRuleActionsDialog } from "dialogs/grammarRuleActionsDialog";
+import { showGrammarRulePracticeDialog } from "dialogs/grammarRulePracticeDialog";
+import { showSrsStatsDialog } from "dialogs/srsStatsDialog";
 import { ListPage, ListPageListEntryData } from "pages/listPage";
 import * as React from "react";
 import { logError } from "utilities/logger";
+import { QueryableItem, runQuery } from "utilities/query";
+import { calculateSrsStats } from "utilities/srs";
 import { useIsMounted } from "utilities/useIsMounted";
 
-function runSearchQuery(grammarRuleEntries: GrammarRuleEntry[], searchQuery: string, filterDate: Date): GrammarRuleEntry[] {
-  const searchTextParts = searchQuery.trim().toLocaleLowerCase().split(" ");
-  if (searchTextParts.length === 0) {
-    return grammarRuleEntries;
-  }
-
-  const words: string[] = [];
-  const includeNewerThan: number[] = [];
-  const includeOlderThan: number[] = [];
-  const excludeNewerThan: number[] = [];
-  const excludeOlderThan: number[] = [];
-  for (const part of searchTextParts) {
-    if (part.startsWith("+")) {
-      const remaining = part.substring(1);
-      if (remaining.startsWith("<")) {
-        const days = parseFloat(remaining.substring(1));
-        if (!isNaN(days) && days >= 0) {
-          includeOlderThan.push(days);
-        }
-      } else if (remaining.startsWith(">")) {
-        const days = parseFloat(remaining.substring(1));
-        if (!isNaN(days) && days >= 0) {
-          includeNewerThan.push(days);
-        }
+function runVocabularyQuery(vocabularyEntries: VocabularyEntry[], searchQuery: string, filterDate: Date): number[] {
+  const queryableItems = vocabularyEntries.map<QueryableItem>(
+    (entry) => (
+      {
+        searchableText: [entry.word, entry.translation],
+        tags: entry.tags,
+        creationDate: entry.creationDate,
+        srsStrength: entry.listeningSrsReviews.size === 0 ? null : calculateSrsStats(entry.listeningSrsReviews, filterDate).strength,
       }
-    } else if (part.startsWith("-")) {
-      const remaining = part.substring(1);
-      if (remaining.startsWith("<")) {
-        const days = parseFloat(remaining.substring(1));
-        if (!isNaN(days) && days >= 0) {
-          excludeOlderThan.push(days);
-        }
-      } else if (remaining.startsWith(">")) {
-        const days = parseFloat(remaining.substring(1));
-        if (!isNaN(days) && days >= 0) {
-          excludeNewerThan.push(days);
-        }
-      }
-    } else {
-      words.push(part);
-    }
-  }
+    ));
 
-  const millisecondsPerDay = 1000 * 60 * 60 * 24;
-  return grammarRuleEntries.filter(
-    (entry) => {
-      if (excludeNewerThan.some((days) => entry.creationDate.getTime() > filterDate.getTime() - days * millisecondsPerDay)
-        || excludeOlderThan.some((days) => entry.creationDate.getTime() < filterDate.getTime() - days * millisecondsPerDay)) {
-        return false;
-      }
+  return runQuery(queryableItems, searchQuery, filterDate);
+}
 
-      if (includeNewerThan.some((days) => entry.creationDate.getTime() > filterDate.getTime() - days * millisecondsPerDay)
-        || includeOlderThan.some((days) => entry.creationDate.getTime() < filterDate.getTime() - days * millisecondsPerDay)) {
-        return true;
+function runGrammarRuleQuery(vocabularyEntries: GrammarRuleEntry[], searchQuery: string, filterDate: Date): number[] {
+  const queryableItems = vocabularyEntries.map<QueryableItem>(
+    (entry) => (
+      {
+        searchableText: [entry.name],
+        tags: [],
+        creationDate: entry.creationDate,
+        srsStrength: entry.listeningSrsReviews.size === 0 ? null : calculateSrsStats(entry.listeningSrsReviews, filterDate).strength,
       }
+    ));
 
-      const nameLower = entry.name.toLocaleLowerCase();
-      return words.some((word) => nameLower.includes(word));
-    });
+  return runQuery(queryableItems, searchQuery, filterDate);
 }
 
 interface GrammarRuleEntryDetailsProps {
@@ -177,6 +148,7 @@ interface GrammarRulesPageProps {
 
 export function GrammarRulesPage(props: GrammarRulesPageProps): React.JSX.Element {
   const [grammarRuleEntries, setGrammarRuleEntries] = React.useState<GrammarRuleEntry[] | null>(null);
+  const [vocabularyEntries, setVocabularyEntries] = React.useState<VocabularyEntry[] | null>(null);
   const [selectedFilteredGrammarRuleIds, setSelectedFilteredGrammarRuleIds] = React.useState(() => new Set<string>());
   const [deleting, setDeleting] = React.useState(false);
 
@@ -198,6 +170,27 @@ export function GrammarRulesPage(props: GrammarRulesPageProps): React.JSX.Elemen
             if (isMounted.current) {
               setGrammarRuleEntries([]);
               void showErrorDialog("Error", "Failed to list grammar rule entries.");
+            }
+          });
+    },
+    []);
+
+  React.useEffect(
+    () => {
+      props.dataState
+        .getVocabularyEntries(props.language)
+        .then(
+          (vocabularyEntriesInner) => {
+            if (isMounted.current) {
+              setVocabularyEntries(vocabularyEntriesInner);
+            }
+          })
+        .catch(
+          (error: unknown) => {
+            logError(error);
+            if (isMounted.current) {
+              setVocabularyEntries([]);
+              void showErrorDialog("Error", "Failed to list vocabulary entries.");
             }
           });
     },
@@ -253,21 +246,31 @@ export function GrammarRulesPage(props: GrammarRulesPageProps): React.JSX.Elemen
       break;
 
     case "ListeningPractice":
-      // void showGrammarRuleListeningPracticeDialog( // !!!
-      //   props.language,
-      //   props.voices,
-      //   (grammarRuleEntries ?? []).filter((entry) => selectedFilteredGrammarRuleIds.has(entry.id)));
+      void showGrammarRulePracticeDialog(
+        props.language,
+        props.voices,
+        (grammarRuleEntries ?? []).filter((entry) => selectedFilteredGrammarRuleIds.has(entry.id)),
+        props.dataState,
+        (query) => {
+          if (vocabularyEntries === null) {
+            return [];
+          }
+
+          return runVocabularyQuery(vocabularyEntries, query, new Date()).map((i) => vocabularyEntries[i]);
+        });
       break;
+
+    case "SrsStats":
+      void showSrsStatsDialog((grammarRuleEntries ?? []).map((v) => ({ id: v.id, reviews: v.listeningSrsReviews })), new Date());
     }
   }
 
   const listPageListEntries = React.useMemo<ListPageListEntryData[] | null>(
-    () => grammarRuleEntries?.map((v) => ({ id: v.id, title: v.name, data: v })) ?? null,
+    () => grammarRuleEntries?.map((v) => ({ id: v.id, title: v.name, srsReviews: v.listeningSrsReviews, data: v })) ?? null,
     [grammarRuleEntries]);
 
   function runSearchQueryWrapper(entries: ListPageListEntryData[], searchQuery: string, filterDate: Date): ListPageListEntryData[] {
-    const results = new Set(runSearchQuery(entries.map((v) => v.data as GrammarRuleEntry), searchQuery, filterDate));
-    return entries.filter((v) => results.has(v.data as GrammarRuleEntry));
+    return runGrammarRuleQuery(entries.map((v) => v.data as GrammarRuleEntry), searchQuery, filterDate).map((i) => entries[i]);
   }
 
   return (

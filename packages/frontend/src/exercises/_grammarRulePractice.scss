@@ -1,0 +1,49 @@
+.grammar-rule-practice-speech-speed {
+  margin-right: auto;
+}
+
+.grammar-rule-practice-revealed-content {
+  width: 100%;
+  height: 100%;
+  padding: 1rem;
+  gap: 0.5rem;
+
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  justify-content: center;
+  align-items: center;
+
+  & .srs-item {
+    background-color: #676767;
+
+    &.passed {
+      background-color: #008100;
+    }
+
+    &.failed {
+      background-color: #c10000;
+    }
+  }
+
+  & .grammar-rule-name {
+    font-size: 3rem;
+    margin-bottom: 2rem;
+  }
+
+  & .language-sentence {
+    font-size: 1.5rem;
+
+    & .srs-item {
+      white-space: nowrap; // Prevent SRS words from line-breaking
+    }
+  }
+
+  & .english-sentence {
+    font-size: 1.5rem;
+  }
+
+  & .submit-button {
+    margin-top: 2rem;
+  }
+}

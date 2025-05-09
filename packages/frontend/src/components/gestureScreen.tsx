@@ -1,6 +1,8 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { useEvent } from "utilities/useEvent";
+import { useRepeatableAction } from "utilities/useRepeatableAction";
+import { ImmutableRefObject } from "utilities/useStateRef";
 import { useWakeLock } from "utilities/useWakeLock";
 
 export type Gesture =
@@ -149,12 +151,42 @@ function detectGesture(trackedGesture: TrackedGesture): Gesture | null {
   return detectTapGesture(trackedGesture.points) ?? detectLineGesture(trackedGesture.points) ?? detectCircleGesture(trackedGesture.points);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+interface GestureScreenBottomControlsProps {
+}
+
+export function GestureScreenBottomControls(props: React.PropsWithChildren<GestureScreenBottomControlsProps>): React.JSX.Element {
+  return (
+    <div className="bottom-controls">
+      {props.children}
+    </div>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+interface GestureScreenGestureAreaContentProps {
+}
+
+export function GestureScreenGestureAreaContent(props: React.PropsWithChildren<GestureScreenGestureAreaContentProps>): React.JSX.Element {
+  return (
+    <div className="gesture-area-content">
+      {props.children}
+    </div>
+  );
+}
+
 interface GestureScreenProps {
   onDetectGesture: (gesture: Gesture) => void;
   message: string;
 }
 
 export function GestureScreen(props: React.PropsWithChildren<GestureScreenProps>): React.JSX.Element {
+  const children = React.Children.toArray(props.children);
+  const bottomControlsChild = children.find(
+    (child) => React.isValidElement(child) && typeof child.type === "function" && child.type.name === "GestureScreenBottomControls");
+  const gestureAreaContent = children.find(
+    (child) => React.isValidElement(child) && typeof child.type === "function" && child.type.name === "GestureScreenGestureAreaContent");
+
   const activeGesture = React.useRef<TrackedGesture | null>(null);
   const [gestureLine, setGestureLine] = React.useState<string | null>(null);
 
@@ -228,14 +260,26 @@ export function GestureScreen(props: React.PropsWithChildren<GestureScreenProps>
         <svg>
           {gestureLine !== null && <path d={gestureLine} />}
         </svg>
+        {gestureAreaContent}
       </div>
-      {
-        React.Children.count(props.children) > 0 && (
-          <div className="bottom-controls">
-            {props.children}
-          </div>
-        )
-      }
+      {bottomControlsChild}
     </div>,
     document.body);
+}
+
+export interface GestureDetectorData {
+  handleDetectGesture: (gesture: Gesture) => void;
+  handleStopGestureDetection: () => void;
+  gesturePromise: ImmutableRefObject<Promise<Gesture | null>>;
+  gestureCount: ImmutableRefObject<number>;
+}
+
+export function useGestureDetector(): GestureDetectorData {
+  const repeatableActionData = useRepeatableAction<Gesture>();
+  return {
+    handleDetectGesture: repeatableActionData.handleAction,
+    handleStopGestureDetection: repeatableActionData.handleStopAction,
+    gesturePromise: repeatableActionData.actionPromise,
+    gestureCount: repeatableActionData.actionCount,
+  };
 }

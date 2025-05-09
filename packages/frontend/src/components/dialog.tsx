@@ -1,11 +1,11 @@
 import { Button, ButtonColor } from "components/button";
 import { FocusTrap } from "components/focusTrap";
+import { TextInput } from "components/textInput";
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { assert } from "utilities/errors";
 import { useEvent } from "utilities/useEvent";
 import { useStateRef } from "utilities/useStateRef";
 import { buildCompleteMappingGetter, classNames } from "utilities/utilities";
-import { TextInput } from "./textInput";
 
 export type DialogWidth = "Normal" | "Small" | "Unset";
 

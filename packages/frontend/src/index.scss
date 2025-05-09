@@ -8,11 +8,13 @@
 @use "components/loadingDots";
 @use "components/select";
 @use "components/textArea";
+@use "dialogs/commonDialogComponents";
 @use "dialogs/conversationSettingsDialog";
 @use "dialogs/grammarRuleActionsDialog";
 @use "dialogs/listeningPracticeDialog";
-@use "dialogs/storyPracticeDialog";
+@use "dialogs/srsStatsDialog";
 @use "dialogs/vocabularyActionsDialog";
+@use "exercises/grammarRulePractice";
 @use "pages/conversationPage";
 @use "pages/conversationsPage";
 @use "pages/grammarRulesPage";

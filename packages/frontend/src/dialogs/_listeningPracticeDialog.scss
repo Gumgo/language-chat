@@ -46,29 +46,3 @@
     }
   }
 }
-
-.listening-practice-settings {
-  display: grid;
-  gap: 0.5rem;
-  grid-template-columns: auto 14rem;
-  align-items: center;
-
-  & .label {
-    text-align: right;
-    align-self: center;
-  }
-
-  & label > input[type="checkbox"] {
-    margin-right: 0.5em;
-  }
-
-  & .controls {
-    grid-column: 1 / span 2;
-    margin-left: auto;
-    margin-right: auto;
-
-    & .start-button {
-      font-size: 2rem;
-    }
-  }
-}

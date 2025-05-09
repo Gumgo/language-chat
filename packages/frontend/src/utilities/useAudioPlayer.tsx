@@ -1,8 +1,8 @@
 import * as React from "react";
 import { assert } from "utilities/errors";
+import { logError } from "utilities/logger";
 import { useIsMounted } from "utilities/useIsMounted";
 import { useStateRef } from "utilities/useStateRef";
-import { logError } from "./logger";
 
 export type AudioState = "Generating" | "Ready" | "Error";
 
@@ -138,4 +138,8 @@ export function useAudioPlayer<TAudioIdentifier>(
     []);
 
   return { playAudio, stopAudio, audioStates: audioStatesState, playingAudioIdentifier: playingAudioIdentifierState };
+}
+
+export function useUrlAudioPlayer(): AudioPlayer<string> {
+  return useAudioPlayer<string>((v) => new Promise<string>((resolve) => resolve(v)), (v) => v);
 }

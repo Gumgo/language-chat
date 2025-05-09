@@ -5,6 +5,7 @@ import { LoadingDots } from "components/loadingDots";
 import { TextInput } from "components/textInput";
 import * as React from "react";
 import { assert } from "utilities/errors";
+import { calculateSrsStats, getSrsStrengthColor } from "utilities/srs";
 
 interface ListPageTopBarProps {
   title: string;
@@ -41,18 +42,31 @@ function ListPageTopBar(props: ListPageTopBarProps): React.JSX.Element {
 interface ListPageListEntryProps {
   title: string;
   details?: string;
+  srsReviews?: ReadonlyMap<Date, boolean>;
+  srsDate: Date;
   selected: boolean;
   onClickDetails: () => void;
   onChangeSelected: (selected: boolean) => void;
 }
 
 function ListPageListEntry(props: ListPageListEntryProps): React.JSX.Element {
+  const srsStrength = React.useMemo(
+    () => {
+      if (props.srsReviews === undefined || props.srsReviews.size === 0) {
+        return null;
+      }
+
+      return calculateSrsStats(props.srsReviews, props.srsDate).strength;
+    },
+    [props.srsReviews, props.srsDate]);
+
   return (
     <div className="list-entry">
       <div className="description">
         <div className="title">{props.title}</div>
         {(props.details?.length ?? 0) > 0 && <div>{props.details}</div>}
       </div>
+      {srsStrength !== null && <div style={{ color: getSrsStrengthColor(srsStrength) }}>{srsStrength.toFixed(1)}</div>}
       <Button
         type="button"
         appearance="IconOnly"
@@ -70,6 +84,7 @@ export interface ListPageListEntryData {
   id: string;
   title: string;
   details?: string;
+  srsReviews?: ReadonlyMap<Date, boolean>;
   data?: unknown;
 }
 
@@ -86,7 +101,7 @@ interface ListPageProps {
 
 export function ListPage(props: React.PropsWithChildren<ListPageProps>): React.JSX.Element {
   const [searchText, setSearchText] = React.useState("");
-  const [filterDate, setFilterDate] = React.useState(() => new Date());
+  const [pageLoadDate, setPageLoadDate] = React.useState(() => new Date());
 
   const entriesElement = React.useRef<HTMLDivElement | null>(null);
   const [scrollbarWidth, setScrollbarWidth] = React.useState(0);
@@ -99,7 +114,7 @@ export function ListPage(props: React.PropsWithChildren<ListPageProps>): React.J
 
   // Set the date once up-front so that it doesn't change after the page has loaded
   React.useEffect(
-    () => setFilterDate(new Date()),
+    () => setPageLoadDate(new Date()),
     []);
 
   React.useLayoutEffect(
@@ -157,9 +172,9 @@ export function ListPage(props: React.PropsWithChildren<ListPageProps>): React.J
         return null;
       }
 
-      return props.filterEntries(props.entries, searchText, filterDate);
+      return props.filterEntries(props.entries, searchText, pageLoadDate);
     },
-    [props.entries, searchText, filterDate]);
+    [props.entries, searchText, pageLoadDate]);
 
   function handleChangeEntrySelected(entryId: string, selected: boolean): void {
     const newSelectedEntryIds = new Set(selectedEntryIds);
@@ -263,6 +278,8 @@ export function ListPage(props: React.PropsWithChildren<ListPageProps>): React.J
                           key={entry.id}
                           title={entry.title}
                           details={entry.details}
+                          srsReviews={entry.srsReviews}
+                          srsDate={pageLoadDate}
                           selected={selectedEntryIds.has(entry.id)}
                           onClickDetails={() => handleClickEntryDetails(entry)}
                           onChangeSelected={(v) => handleChangeEntrySelected(entry.id, v)}
