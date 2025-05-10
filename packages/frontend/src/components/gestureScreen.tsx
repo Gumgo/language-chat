@@ -183,9 +183,9 @@ interface GestureScreenProps {
 export function GestureScreen(props: React.PropsWithChildren<GestureScreenProps>): React.JSX.Element {
   const children = React.Children.toArray(props.children);
   const bottomControlsChild = children.find(
-    (child) => React.isValidElement(child) && typeof child.type === "function" && child.type.name === "GestureScreenBottomControls");
+    (child) => React.isValidElement(child) && typeof child.type === "function" && child.type === GestureScreenBottomControls);
   const gestureAreaContent = children.find(
-    (child) => React.isValidElement(child) && typeof child.type === "function" && child.type.name === "GestureScreenGestureAreaContent");
+    (child) => React.isValidElement(child) && typeof child.type === "function" && child.type === GestureScreenGestureAreaContent);
 
   const activeGesture = React.useRef<TrackedGesture | null>(null);
   const [gestureLine, setGestureLine] = React.useState<string | null>(null);
