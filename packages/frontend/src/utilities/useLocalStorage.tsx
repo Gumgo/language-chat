@@ -3,7 +3,8 @@ import * as React from "react";
 export function useLocalStorageState<Type extends { toString: () => string }>(
   key: string,
   parse: (value: string) => Type | undefined,
-  initialValue: Type | (() => Type)): [Type, (value: Type) => void] {
+  initialValue: Type | (() => Type),
+): [Type, (value: Type) => void] {
   const [value, setValue] = React.useState(
     () => {
       const storageValue = localStorage.getItem(key);
@@ -34,4 +35,20 @@ export function useLocalStorageState<Type extends { toString: () => string }>(
     []);
 
   return [value, setValueWrapper];
+}
+
+export class LocalStorageCategory {
+  private readonly category: string;
+
+  public constructor(category: string) {
+    this.category = category;
+  }
+
+  public useLocalStorageState<Type extends { toString: () => string }>(
+    key: string,
+    parse: (value: string) => Type | undefined,
+    initialValue: Type | (() => Type),
+  ): [Type, (value: Type) => void] {
+    return useLocalStorageState(`${this.category}.${key}`, parse, initialValue);
+  }
 }

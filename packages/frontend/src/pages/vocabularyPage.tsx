@@ -8,7 +8,7 @@ import { showListeningPracticeDialog } from "dialogs/listeningPracticeDialog";
 import { showSrsStatsDialog } from "dialogs/srsStatsDialog";
 import { showStoryPracticeDialog } from "dialogs/storyPracticeDialog";
 import { showVocabularyActionsDialog } from "dialogs/vocabularyActionsDialog";
-import { ListPage, ListPageListEntryData } from "pages/listPage";
+import { ListPage, ListPageListEntryData, ListPageTopBar } from "pages/listPage";
 import * as React from "react";
 import { doThrow } from "utilities/errors";
 import { logError } from "utilities/logger";
@@ -101,6 +101,7 @@ function VocabularyEntryDetails(props: VocabularyEntryDetailsProps): React.JSX.E
 
   return (
     <>
+      <ListPageTopBar title={props.vocabularyEntry.word} backButtonAction={() => props.onClose(null)} />
       <TextInput value={translation} onChangeValue={setTranslation} placeholder="Translation" />
       <TextArea className="vocabulary-notes" value={notes} onChangeValue={setNotes} placeholder="Notes" />
       <TextInput value={tags} onChangeValue={setTags} onBlur={() => setTags(fixedUpTags)} placeholder="Tags" />

@@ -47,6 +47,7 @@ export function HomePage(props: HomePageProps): React.JSX.Element {
         <ButtonLink to={`/${selectedLanguage}/conversations`} appearance="Standard" color="Primary" text="View conversations" />
         <ButtonLink to={`/${selectedLanguage}/vocabulary`} appearance="Standard" color="Primary" text="Vocabulary" />
         <ButtonLink to={`/${selectedLanguage}/grammar-rules`} appearance="Standard" color="Primary" text="Grammar rules" />
+        <ButtonLink to={`/${selectedLanguage}/srs`} appearance="Standard" color="Primary" text="SRS" />
         {
           selectedLanguage === "Japanese" && (
             <Button type="button" appearance="Standard" color="Primary" text="Set WaniKani API key" onClick={() => void handleClickSetWaniKaniApiKey()} />

@@ -5,6 +5,7 @@ import { VocabularyEntry } from "dataState";
 import { StoryDifficulty, StoryMode } from "exercises/storyPracticeTypes";
 import { getStoryPracticePrompts } from "prompts";
 import * as React from "react";
+import { activeSpeechService } from "speechService";
 import { doThrow } from "utilities/errors";
 import { logError } from "utilities/logger";
 import { generateIsolatedWordSpeechUrl, trimAudioPlaybackUrl } from "utilities/speechUtilities";
@@ -268,11 +269,11 @@ export function StoryPractice(props: StoryPracticeProps): React.JSX.Element {
     }
 
     async function languageSpeechUrl(voice: string, message: string, ssml: boolean): Promise<string> {
-      return (await speech({ language: props.language, voice, speed: props.speechSpeed, message, ssml })).audioUrl;
+      return (await speech({ language: props.language, service: activeSpeechService, voice, speed: props.speechSpeed, message, ssml })).audioUrl;
     }
 
     async function englishSpeechUrl(voice: string, message: string): Promise<string> {
-      return (await speech({ language: "English", voice, speed: 100, message, ssml: false })).audioUrl;
+      return (await speech({ language: "English", service: activeSpeechService, voice, speed: 100, message, ssml: false })).audioUrl;
     }
 
     const storyAudio: StoryAudio = {
@@ -287,7 +288,7 @@ export function StoryPractice(props: StoryPracticeProps): React.JSX.Element {
     for (const newWord of newWords) {
       storyAudio.newWords.push(
         {
-          word: await generateIsolatedWordSpeechUrl(props.language, narratorVoiceName, props.speechSpeed, newWord.word),
+          word: await generateIsolatedWordSpeechUrl(props.language, activeSpeechService, narratorVoiceName, props.speechSpeed, newWord.word),
           meaning: await englishSpeechUrl(narratorEnglishVoiceName, newWord.meaning),
         });
     }
@@ -302,6 +303,7 @@ export function StoryPractice(props: StoryPracticeProps): React.JSX.Element {
     const fullStorySpeechResponse = await speech(
       {
         language: props.language,
+        service: activeSpeechService,
         voice: narratorVoiceName,
         speed: props.speechSpeed,
         message: fullStoryContentParts.join(""),
@@ -313,6 +315,7 @@ export function StoryPractice(props: StoryPracticeProps): React.JSX.Element {
     const splitStorySpeechResponse = await speech(
       {
         language: props.language,
+        service: activeSpeechService,
         voice: narratorVoiceName,
         speed: props.speechSpeed,
         message: splitStoryContentParts.join(""),

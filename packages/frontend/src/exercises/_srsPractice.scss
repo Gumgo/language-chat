@@ -1,8 +1,15 @@
-.grammar-rule-practice-speech-speed {
+.srs-practice-speech-speed {
   margin-right: auto;
 }
 
-.grammar-rule-practice-revealed-content {
+.srs-practice-counter {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  text-align: right;
+}
+
+.srs-practice-revealed-content {
   width: 100%;
   height: 100%;
   padding: 1rem;
@@ -14,8 +21,14 @@
   justify-content: center;
   align-items: center;
 
-  & .srs-item {
-    background-color: #676767;
+  & .highlighted-item {
+    &.filler {
+      background-color: #67676780;
+    }
+
+    &.unresolved {
+      background-color: #676767;
+    }
 
     &.passed {
       background-color: #008100;
@@ -23,6 +36,10 @@
 
     &.failed {
       background-color: #c10000;
+    }
+
+    &.locked {
+      box-shadow: inset 0 0 0 2px #c300ff;
     }
   }
 
@@ -34,7 +51,7 @@
   & .language-sentence {
     font-size: 1.5rem;
 
-    & .srs-item {
+    & .highlighted-item {
       white-space: nowrap; // Prevent SRS words from line-breaking
     }
   }

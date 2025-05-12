@@ -12,7 +12,7 @@ function logPromptData(message: unknown): void {
   logInfo(message); // !!! I'm leaving this uncommented to shake out bugs in this system
 }
 
-export type SentencePartType = "Text" | "PracticeWord" | "FillerWord" | "UnknownWord";
+export type SentencePartType = "Text" | "PracticeWord" | "FillerWord" | "LockedWord" | "UnknownWord";
 
 export interface SentencePart {
   type: SentencePartType;
@@ -222,7 +222,8 @@ export class GrammarRuleSentenceGenerator {
       const listOrLists = this.practiceWords.length > 0 && this.fillerWords.length > 0 ? "lists" : "list";
       prompt += `\n  - When writing out the sentence, place double brackets around each word chosen from the provided ${listOrLists}. Additionally, within the `
         + "brackets, write the original, unmodified word, EXACTLY as it appears in the word list, separated using the | character. For example, if a chosen "
-        + "word is 'run' and it was conjugated to 'ran', it should appear in the sentence as [[ran|run]].";
+        + "word is 'run' and it was conjugated to 'ran', it should appear in the sentence as [[ran|run]]. An example of a complete formatted sentence is: 'I "
+        + "[[ran|run]] five miles yesterday.'.";
       prompt += "\n  - For all other words, including ones utilized by the grammar rule but not in the provided word list, you should not add any additional "
       + "markup.";
     }

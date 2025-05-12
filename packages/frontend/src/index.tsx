@@ -10,11 +10,13 @@ import { ConversationPage } from "pages/conversationPage";
 import { ConversationsPage } from "pages/conversationsPage";
 import { GrammarRulesPage } from "pages/grammarRulesPage";
 import { HomePage } from "pages/homePage";
+import { SrsPracticePage } from "pages/srsPracticePage";
 import { StartConversationPage } from "pages/startConversationPage";
 import { VocabularyPage } from "pages/vocabularyPage";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { activeSpeechService } from "speechService";
 import { logError } from "utilities/logger";
 import { useIsMounted } from "utilities/useIsMounted";
 
@@ -85,6 +87,10 @@ function LoggedInWithVoices(props: LoggedInWithVoicesProps): React.JSX.Element {
                 path={`/${language}/grammar-rules`}
                 element={<GrammarRulesPage dataState={props.loginState.dataState} language={language} voices={props.voices} />}
               />
+              <Route
+                path={`/${language}/srs`}
+                element={<SrsPracticePage dataState={props.loginState.dataState} language={language} voices={props.voices} />}
+              />
             </React.Fragment>
           ))
       }
@@ -106,16 +112,10 @@ function LoggedIn(props: LoggedInProps): React.JSX.Element {
 
   async function fetchVoices(): Promise<void> {
     try {
-      const response = await listVoices();
-
-      // Only allow the Wavenet voices (the others are more expensive and Standard is low quality)
-      function filterVoices(allVoices: ListVoicesApiResponseVoice[]): ListVoicesApiResponseVoice[] {
-        const filters = ["Wavenet"];
-        return allVoices.filter((voice) => filters.some((filter) => voice.name.includes(filter)));
-      }
+      const response = await listVoices(activeSpeechService);
 
       if (isMounted.current) {
-        setVoices(new Map(response.languages.map((language) => [language.language, filterVoices(language.voices)])));
+        setVoices(new Map(response.languages.map((language) => [language.language, language.voices])));
       }
     } catch (error) {
       logError(error);

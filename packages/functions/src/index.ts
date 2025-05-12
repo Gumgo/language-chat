@@ -11,6 +11,9 @@ import { existsSync } from "fs";
 import OpenAI from "openai";
 import * as path from "path";
 import { encoding_for_model, TiktokenModel } from "tiktoken";
+import { ResultReason, SpeechConfig, SpeechSynthesisOutputFormat, SpeechSynthesisResult, SpeechSynthesizer, SynthesisVoiceGender, SynthesisVoiceType } from "microsoft-cognitiveservices-speech-sdk";
+
+const microsoftSpeechSdkRegion = "westus";
 
 function doThrow(error: Error): never {
   throw error;
@@ -38,6 +41,7 @@ app.use(
 interface Globals {
   openAi: OpenAI;
   textToSpeechClient: v1beta1.TextToSpeechClient;
+  microsoftSpeechSdkKey: string;
 }
 
 let globals: Globals | null = null;
@@ -53,6 +57,7 @@ app.use(
       const openAiApiKey = process.env.OPENAI_API_KEY ?? doThrow(new Error("OpenAI API key not provided"));
       const openAiProjectId = process.env.OPENAI_PROJECT_ID ?? doThrow(new Error("OpenAI project ID not provided"));
       const tiktokenCacheDir = process.env.TIKTOKEN_CACHE_DIR ?? doThrow(new Error("Tiktoken cache directory not provided"));
+      const microsoftSpeechSdkKey = process.env.MICROSOFT_SPEECH_SDK_KEY ?? doThrow(new Error("Microsoft Speech SDK key not provided"));
 
       // Make sure we've pre-downloaded all expected cache files for tiktoken. Instructions are here:
       // https://stackoverflow.com/questions/76106366/how-to-use-tiktoken-in-offline-mode-computer
@@ -74,6 +79,7 @@ app.use(
       globals = {
         openAi: new OpenAI({ apiKey: openAiApiKey, project: openAiProjectId }),
         textToSpeechClient: new v1beta1.TextToSpeechClient({ keyFile: "./language-chat-service-account.json" }),
+        microsoftSpeechSdkKey,
       };
     }
 
@@ -97,8 +103,11 @@ const languageValues = [...languageCodesFromLanguages.keys()];
 const senderValues = ["System", "Assistant", "User"] as const;
 type Sender = typeof senderValues[number];
 
-const modelValues = ["gpt-3.5-turbo", "gpt-4o-mini", "gpt-4o", "gpt-4", "gpt-4-turbo"] as const;
+const modelValues = ["gpt-3.5-turbo", "gpt-4o-mini", "gpt-4", "gpt-4o", "gpt-4-turbo", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano"] as const;
 type Model = typeof modelValues[number];
+
+const speechServiceValues = ["Google", "Microsoft"] as const;
+type SpeechService = typeof speechServiceValues[number];
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const voiceGenderValues = ["Male", "Female"] as const;
@@ -170,6 +179,7 @@ interface ListVoicesApiResponse {
 }
 
 interface SpeechApiRequest {
+  service: SpeechService;
   language: string;
   voice: string;
   speed: number;
@@ -194,6 +204,10 @@ interface SpeechTimepoints {
 const speechApiRequestSchema: ajv.JSONSchemaType<SpeechApiRequest> = {
   type: "object",
   properties: {
+    service: {
+      type: "string",
+      enum: speechServiceValues,
+    },
     language: {
       type: "string",
       enum: languageValues,
@@ -285,44 +299,84 @@ app.post(
   });
 
 app.get(
-  "/v1/voices",
+  "/v1/voices/:service",
   // eslint-disable-next-line @typescript-eslint/no-misused-promises
-  async (_req, res) => {
+  async (req, res) => {
     const response: ListVoicesApiResponse = {
       languages: [],
     };
 
-    for (const [language, languageCode] of languageCodesFromLanguages.entries()) {
-      const [listVoicesResponse] = await getGlobals().textToSpeechClient.listVoices({ languageCode });
-      response.languages.push(
-        {
-          language,
-          voices: (listVoicesResponse.voices ?? [])
-            .map(
-              (voice) => {
-                let name = voice.name ?? "";
-                let gender: VoiceGender;
-                switch (voice.ssmlGender) {
-                case "MALE":
-                  gender = "Male";
-                  break;
+    if (req.params.service === "Google") {
+      for (const [language, languageCode] of languageCodesFromLanguages.entries()) {
+        const [listVoicesResponse] = await getGlobals().textToSpeechClient.listVoices({ languageCode });
+        response.languages.push(
+          {
+            language,
+            voices: (listVoicesResponse.voices ?? [])
+              .filter((voice) => voice.name?.includes("Wavenet") ?? false)
+              .map(
+                (voice) => {
+                  let name = voice.name ?? "";
+                  let gender: VoiceGender;
+                  switch (voice.ssmlGender) {
+                  case "MALE":
+                    gender = "Male";
+                    break;
 
-                case "FEMALE":
-                  gender = "Female";
-                  break;
+                  case "FEMALE":
+                    gender = "Female";
+                    break;
 
-                default:
-                  gender = "Male";
-                  name = ""; // Use this to filter out unsupported voices
-                }
+                  default:
+                    gender = "Male";
+                    name = ""; // Use this to filter out unsupported voices
+                  }
 
-                return { name, gender };
-              })
-            .filter((voice) => voice.name.length > 0),
-        });
+                  return { name, gender };
+                })
+              .filter((voice) => voice.name.length > 0),
+          });
+      }
+
+      res.status(200).send(response);
+    } else if (req.params.service === "Microsoft") {
+      const speechConfig = SpeechConfig.fromSubscription(getGlobals().microsoftSpeechSdkKey, microsoftSpeechSdkRegion);
+      const speechSynthesizer = new SpeechSynthesizer(speechConfig, null);
+      for (const [language, languageCode] of languageCodesFromLanguages.entries()) {
+        const listVoicesResult = await speechSynthesizer.getVoicesAsync(languageCode);
+        response.languages.push(
+          {
+            language,
+            voices: listVoicesResult.voices
+              .filter((voice) => voice.voiceType === SynthesisVoiceType.OnlineNeural) // OnlineNeuralHD does not seem to be available
+              .map(
+                (voice) => {
+                  let name = voice.name;
+                  let gender: VoiceGender;
+                  switch (voice.gender) {
+                  case SynthesisVoiceGender.Male:
+                    gender = "Male";
+                    break;
+
+                  case SynthesisVoiceGender.Female:
+                    gender = "Female";
+                    break;
+
+                  default:
+                    gender = "Male";
+                    name = ""; // Use this to filter out unsupported voices
+                  }
+
+                  return { name, gender };
+                })
+              .filter((voice) => voice.name.length > 0),
+          });
+      }
+
+      res.status(200).send(response);
+    } else {
+      res.sendStatus(404);
     }
-
-    res.status(200).send(response);
   });
 
 app.post(
@@ -348,6 +402,7 @@ app.post(
     const dayIndex = Math.floor(date.getTime() / (24 * 60 * 60 * 1000));
     const hashInputs = [
       dayIndex.toString(),
+      body.service,
       body.language,
       body.voice,
       body.speed.toString(),
@@ -365,44 +420,93 @@ app.post(
     const [fileExists] = await audioStorageFile.exists();
     if (!fileExists) {
       // The file doesn't yet exist so generate and upload it
-      const [response] = await getGlobals().textToSpeechClient.synthesizeSpeech(
-        {
-          input: {
-            text: !body.ssml ? body.message : undefined,
-            ssml: body.ssml ? body.message : undefined,
-          },
-          voice: {
-            languageCode,
-            name: body.voice,
-          },
-          enableTimePointing: body.ssml ? [protos.google.cloud.texttospeech.v1beta1.SynthesizeSpeechRequest.TimepointType.SSML_MARK] : undefined,
-          audioConfig: {
-            audioEncoding: "MP3",
-            speakingRate: body.speed * 0.01,
-          },
-        });
+      const promises: Promise<void>[] = [];
+      switch (body.service) {
+      case "Google":
+      {
+        const [response] = await getGlobals().textToSpeechClient.synthesizeSpeech(
+          {
+            input: {
+              text: !body.ssml ? body.message : undefined,
+              ssml: body.ssml ? body.message : undefined,
+            },
+            voice: {
+              languageCode,
+              name: body.voice,
+            },
+            enableTimePointing: body.ssml ? [protos.google.cloud.texttospeech.v1beta1.SynthesizeSpeechRequest.TimepointType.SSML_MARK] : undefined,
+            audioConfig: {
+              audioEncoding: "MP3",
+              speakingRate: body.speed * 0.01,
+            },
+          });
 
-      if (response.audioContent === null || response.audioContent === undefined || typeof response.audioContent === "string") {
-        res.sendStatus(500);
-        return;
+        if (response.audioContent === null || response.audioContent === undefined || typeof response.audioContent === "string") {
+          res.sendStatus(500);
+          return;
+        }
+
+        promises.push(audioStorageFile.save(Buffer.from(response.audioContent), { contentType: "audio/mpeg" }));
+
+        if (body.ssml) {
+          const timepoints: SpeechTimepoints = {
+            timepoints: (response.timepoints ?? [])
+              .filter((v) => v.markName !== null && v.markName !== undefined && v.timeSeconds !== null && v.timeSeconds !== undefined)
+              .map(
+                (v) => {
+                  assert(v.markName !== null && v.markName !== undefined);
+                  assert(v.timeSeconds !== null && v.timeSeconds !== undefined);
+                  return { markName: v.markName, timeSeconds: v.timeSeconds };
+                }),
+          };
+
+          const timepointsJson = JSON.stringify(timepoints);
+          promises.push(timepointsStorageFile.save(timepointsJson, { contentType: "application/json" }));
+        }
+
+        break;
       }
 
-      const promises = [audioStorageFile.save(Buffer.from(response.audioContent), { contentType: "audio/mpeg" })];
+      case "Microsoft":
+      {
+        const speechConfig = SpeechConfig.fromSubscription(getGlobals().microsoftSpeechSdkKey, microsoftSpeechSdkRegion);
+        speechConfig.speechSynthesisVoiceName = body.voice;
+        speechConfig.speechSynthesisOutputFormat = SpeechSynthesisOutputFormat.Audio48Khz96KBitRateMonoMp3;
+        const speechSynthesizer = new SpeechSynthesizer(speechConfig, null);
 
-      if (body.ssml) {
-        const timepoints: SpeechTimepoints = {
-          timepoints: (response.timepoints ?? [])
-            .filter((v) => v.markName !== null && v.markName !== undefined && v.timeSeconds !== null && v.timeSeconds !== undefined)
-            .map(
-              (v) => {
-                assert(v.markName !== null && v.markName !== undefined);
-                assert(v.timeSeconds !== null && v.timeSeconds !== undefined);
-                return { markName: v.markName, timeSeconds: v.timeSeconds };
-              }),
-        };
+        const timepoints: SpeechTimepoints = { timepoints: [] };
+        speechSynthesizer.bookmarkReached = (_, event) => timepoints.timepoints.push({ markName: event.text, timeSeconds: event.audioOffset / 10000000 });
 
-        const timepointsJson = JSON.stringify(timepoints);
-        promises.push(timepointsStorageFile.save(timepointsJson, { contentType: "application/json" }));
+        // $TODO if we're already using SSML, speech speed currently isn't supported because we'd need to scale any existing prosody tags. Should probably
+        // implement this for story mode once I get back to it.
+        const result = await new Promise<SpeechSynthesisResult>(
+          (resolve) => {
+            if (body.ssml) {
+              speechSynthesizer.speakSsmlAsync(body.message, resolve);
+            } else if (body.speed !== 100) {
+              const message =
+                `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${languageCode}}">`
+                + `<voice name="${body.voice}"><prosody rate="${body.speed * 0.01}">${body.message}</prosody></voice></speak>`;
+              speechSynthesizer.speakSsmlAsync(message, resolve);
+            } else {
+              speechSynthesizer.speakTextAsync(body.message, resolve);
+            }
+          });
+
+        if (result.reason !== ResultReason.SynthesizingAudioCompleted) {
+          res.sendStatus(500);
+          return;
+        }
+
+        promises.push(audioStorageFile.save(Buffer.from(result.audioData), { contentType: "audio/mpeg" }));
+
+        if (body.ssml) {
+          const timepointsJson = JSON.stringify(timepoints);
+          promises.push(timepointsStorageFile.save(timepointsJson, { contentType: "application/json" }));
+        }
+
+        break;
+      }
       }
 
       await Promise.all(promises);

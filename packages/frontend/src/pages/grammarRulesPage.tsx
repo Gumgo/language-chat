@@ -3,30 +3,15 @@ import { Button } from "components/button";
 import { showDialog, showErrorDialog, showOptionsDialog } from "components/dialog";
 import { TextArea } from "components/textArea";
 import { TextInput } from "components/textInput";
-import { DataState, GrammarRuleEntry, VocabularyEntry } from "dataState";
+import { DataState, GrammarRuleEntry } from "dataState";
 import { showGrammarRuleActionsDialog } from "dialogs/grammarRuleActionsDialog";
-import { showGrammarRulePracticeDialog } from "dialogs/grammarRulePracticeDialog";
 import { showSrsStatsDialog } from "dialogs/srsStatsDialog";
-import { ListPage, ListPageListEntryData } from "pages/listPage";
+import { ListPage, ListPageListEntryData, ListPageTopBar } from "pages/listPage";
 import * as React from "react";
 import { logError } from "utilities/logger";
 import { QueryableItem, runQuery } from "utilities/query";
 import { calculateSrsStats } from "utilities/srs";
 import { useIsMounted } from "utilities/useIsMounted";
-
-function runVocabularyQuery(vocabularyEntries: VocabularyEntry[], searchQuery: string, filterDate: Date): number[] {
-  const queryableItems = vocabularyEntries.map<QueryableItem>(
-    (entry) => (
-      {
-        searchableText: [entry.word, entry.translation],
-        tags: entry.tags,
-        creationDate: entry.creationDate,
-        srsStrength: entry.listeningSrsReviews.size === 0 ? null : calculateSrsStats(entry.listeningSrsReviews, filterDate).strength,
-      }
-    ));
-
-  return runQuery(queryableItems, searchQuery, filterDate);
-}
 
 function runGrammarRuleQuery(vocabularyEntries: GrammarRuleEntry[], searchQuery: string, filterDate: Date): number[] {
   const queryableItems = vocabularyEntries.map<QueryableItem>(
@@ -50,19 +35,19 @@ interface GrammarRuleEntryDetailsProps {
 }
 
 function GrammarRuleEntryDetails(props: GrammarRuleEntryDetailsProps): React.JSX.Element {
-  // $TODO allow name update too?
+  const [name, setName] = React.useState(props.grammarRuleEntry.name);
   const [description, setDescription] = React.useState(props.grammarRuleEntry.description);
   const [savingChanges, setSavingChanges] = React.useState(false);
 
   async function handleClickSaveChanges(): Promise<void> {
     setSavingChanges(true);
     try {
-      await props.dataState.updateGrammarRuleEntry(props.language, props.grammarRuleEntry.id, props.grammarRuleEntry.name, props.grammarRuleEntry.description);
+      await props.dataState.updateGrammarRuleEntry(props.language, props.grammarRuleEntry.id, name, description);
       props.onClose(
         {
           creationDate: props.grammarRuleEntry.creationDate,
           id: props.grammarRuleEntry.id,
-          name: props.grammarRuleEntry.name,
+          name,
           description,
           listeningSrsReviews: props.grammarRuleEntry.listeningSrsReviews,
         });
@@ -73,11 +58,12 @@ function GrammarRuleEntryDetails(props: GrammarRuleEntryDetailsProps): React.JSX
     }
   }
 
-  const isValid = description.length > 0;
-  const anyChanges = description !== props.grammarRuleEntry.description;
+  const isValid = name.length > 0 && description.length > 0;
+  const anyChanges = name !== props.grammarRuleEntry.name || description !== props.grammarRuleEntry.description;
 
   return (
     <>
+      <ListPageTopBar title={name} backButtonAction={() => props.onClose(null)} onEdit={(v) => setName(v.trim())} editDialogTitle="Edit name" />
       <TextArea className="grammar-rule-description" value={description} onChangeValue={setDescription} placeholder="Description" />
       <div className="controls">
         <Button
@@ -100,8 +86,7 @@ async function showAddGrammarRuleEntryDialog(initialState?: GrammarRuleEntry): P
       const [description, setDescription] = React.useState(initialState?.description ?? "");
 
       const trimmedName = name.trim();
-      const canAdd = trimmedName.length > 0
-        && description.length > 0;
+      const canAdd = trimmedName.length > 0 && description.length > 0;
 
       function getGrammarRuleEntry(): GrammarRuleEntry {
         return { creationDate: new Date(), id: "", name: trimmedName, description, listeningSrsReviews: new Map() }; // ID will be filled in later
@@ -148,7 +133,6 @@ interface GrammarRulesPageProps {
 
 export function GrammarRulesPage(props: GrammarRulesPageProps): React.JSX.Element {
   const [grammarRuleEntries, setGrammarRuleEntries] = React.useState<GrammarRuleEntry[] | null>(null);
-  const [vocabularyEntries, setVocabularyEntries] = React.useState<VocabularyEntry[] | null>(null);
   const [selectedFilteredGrammarRuleIds, setSelectedFilteredGrammarRuleIds] = React.useState(() => new Set<string>());
   const [deleting, setDeleting] = React.useState(false);
 
@@ -170,27 +154,6 @@ export function GrammarRulesPage(props: GrammarRulesPageProps): React.JSX.Elemen
             if (isMounted.current) {
               setGrammarRuleEntries([]);
               void showErrorDialog("Error", "Failed to list grammar rule entries.");
-            }
-          });
-    },
-    []);
-
-  React.useEffect(
-    () => {
-      props.dataState
-        .getVocabularyEntries(props.language)
-        .then(
-          (vocabularyEntriesInner) => {
-            if (isMounted.current) {
-              setVocabularyEntries(vocabularyEntriesInner);
-            }
-          })
-        .catch(
-          (error: unknown) => {
-            logError(error);
-            if (isMounted.current) {
-              setVocabularyEntries([]);
-              void showErrorDialog("Error", "Failed to list vocabulary entries.");
             }
           });
     },
@@ -240,24 +203,9 @@ export function GrammarRulesPage(props: GrammarRulesPageProps): React.JSX.Elemen
   }
 
   async function handleClickActions(): Promise<void> {
-    const action = await showGrammarRuleActionsDialog(selectedFilteredGrammarRuleIds.size);
+    const action = await showGrammarRuleActionsDialog();
     switch (action) {
     case null:
-      break;
-
-    case "ListeningPractice":
-      void showGrammarRulePracticeDialog(
-        props.language,
-        props.voices,
-        (grammarRuleEntries ?? []).filter((entry) => selectedFilteredGrammarRuleIds.has(entry.id)),
-        props.dataState,
-        (query) => {
-          if (vocabularyEntries === null) {
-            return [];
-          }
-
-          return runVocabularyQuery(vocabularyEntries, query, new Date()).map((i) => vocabularyEntries[i]);
-        });
       break;
 
     case "SrsStats":

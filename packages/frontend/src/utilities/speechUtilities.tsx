@@ -1,4 +1,4 @@
-import { getSpeechTimepoints, speech } from "api";
+import { getSpeechTimepoints, speech, SpeechService } from "api";
 
 export function trimAudioPlaybackUrl(url: string, startTimeSeconds: number | null, endTimeSeconds: number | null): string {
   if (startTimeSeconds === null && endTimeSeconds === null) {
@@ -7,24 +7,15 @@ export function trimAudioPlaybackUrl(url: string, startTimeSeconds: number | nul
 
   return `${url}#t=${startTimeSeconds?.toPrecision(3) ?? ""},${endTimeSeconds?.toPrecision(3) ?? ""}`;
 }
-export async function generateIsolatedWordSpeechUrl(language: string, voice: string, speed: number, word: string): Promise<string> {
+export async function generateIsolatedWordSpeechUrl(language: string, service: SpeechService, voice: string, speed: number, word: string): Promise<string> {
   let message = word;
   let ssml = false;
-  switch (language) {
-  case "Japanese":
+  if (service === "Google" && language === "Japanese") {
     message = `<speak>言葉は<break time="500ms" /><mark name="a" />「${word}」<mark name="b" /><break time="500ms" />です。</speak>`;
     ssml = true;
-    break;
   }
 
-  const response = await speech(
-    {
-      language,
-      voice,
-      speed,
-      message,
-      ssml,
-    });
+  const response = await speech({ language, service, voice, speed, message, ssml });
 
   if (ssml) {
     const timepoints = await getSpeechTimepoints(response);

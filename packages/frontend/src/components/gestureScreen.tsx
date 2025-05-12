@@ -4,6 +4,7 @@ import { useEvent } from "utilities/useEvent";
 import { useRepeatableAction } from "utilities/useRepeatableAction";
 import { ImmutableRefObject } from "utilities/useStateRef";
 import { useWakeLock } from "utilities/useWakeLock";
+import { classNames } from "utilities/utilities";
 
 export type Gesture =
   | "Tap"
@@ -176,6 +177,7 @@ export function GestureScreenGestureAreaContent(props: React.PropsWithChildren<G
 }
 
 interface GestureScreenProps {
+  overlay?: boolean;
   onDetectGesture: (gesture: Gesture) => void;
   message: string;
 }
@@ -247,10 +249,11 @@ export function GestureScreen(props: React.PropsWithChildren<GestureScreenProps>
 
   useWakeLock();
 
-  return createPortal(
+  // !!! the old practice screens still need to use overlay mode. Remove this when they've been updated.
+  const elements = (
     <div className="gesture-screen">
       <div
-        className="gesture-detection-area"
+        className={classNames("gesture-detection-area", props.overlay === true && "overlay")}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
@@ -263,8 +266,10 @@ export function GestureScreen(props: React.PropsWithChildren<GestureScreenProps>
         {gestureAreaContent}
       </div>
       {bottomControlsChild}
-    </div>,
-    document.body);
+    </div>
+  );
+
+  return props.overlay === true ? createPortal(elements, document.body) : elements;
 }
 
 export interface GestureDetectorData {

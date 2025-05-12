@@ -1,28 +1,18 @@
-import { faChartSimple, faEarListen } from "@fortawesome/free-solid-svg-icons";
+import { faChartSimple } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "components/button";
 import { showDialog } from "components/dialog";
 import * as React from "react";
 
 export type GrammarRuleAction =
-  | "ListeningPractice"
   | "SrsStats";
 
-export async function showGrammarRuleActionsDialog(selectedGrammarRuleCount: number): Promise<GrammarRuleAction | null> {
+export async function showGrammarRuleActionsDialog(): Promise<GrammarRuleAction | null> {
   const result = await showDialog(
     (dialogProps) => {
       return (
         <div className="options-dialog-container">
           <h3>Grammar rule actions</h3>
           <div className="grammar-rule-actions">
-            <Button
-              type="button"
-              appearance="IconOnly"
-              color="Primary"
-              icon={faEarListen}
-              tooltip="Listening practice"
-              disabled={selectedGrammarRuleCount === 0}
-              onClick={() => dialogProps.onClose("ListeningPractice")}
-            />
             <Button
               type="button"
               appearance="IconOnly"

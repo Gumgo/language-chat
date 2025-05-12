@@ -172,6 +172,14 @@ export function runQuery(items: QueryableItem[], query: string, filterDate: Date
     }
   }
 
+  const anyIncludeFilters = words.length > 0
+    || includeTags.length > 0
+    || includeNewerThan.length > 0
+    || includeOlderThan.length > 0
+    || includeSrs.length > 0
+    || includeSrsStrongerThan.length > 0
+    || includeSrsWeakerThan.length > 0;
+
   const millisecondsPerDay = 1000 * 60 * 60 * 24;
   return items
     .map((_, i) => i)
@@ -185,6 +193,10 @@ export function runQuery(items: QueryableItem[], query: string, filterDate: Date
           || excludeSrsStrongerThan.some((strength) => item.srsStrength !== null && item.srsStrength > strength)
           || excludeSrsWeakerThan.some((strength) => item.srsStrength !== null && item.srsStrength < strength)) {
           return false;
+        }
+
+        if (!anyIncludeFilters) {
+          return true;
         }
 
         if (includeTags.some((tag) => item.tags.includes(tag))

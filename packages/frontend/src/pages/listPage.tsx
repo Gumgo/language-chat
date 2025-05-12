@@ -1,6 +1,7 @@
-import { faCircleArrowLeft, faList, faWrench } from "@fortawesome/free-solid-svg-icons";
+import { faCircleArrowLeft, faList, faPencil, faWrench } from "@fortawesome/free-solid-svg-icons";
 import { Button, ButtonLink } from "components/button";
 import { Checkbox, TriStateCheckbox, TriStateCheckboxValue } from "components/checkbox";
+import { showInputDialog } from "components/dialog";
 import { LoadingDots } from "components/loadingDots";
 import { TextInput } from "components/textInput";
 import * as React from "react";
@@ -11,9 +12,24 @@ interface ListPageTopBarProps {
   title: string;
   backButtonAction: string | (() => void);
   onClickActions?: () => void;
+  onEdit?: (newTitle: string) => void;
+  editDialogTitle?: string;
 }
 
-function ListPageTopBar(props: ListPageTopBarProps): React.JSX.Element {
+export function ListPageTopBar(props: ListPageTopBarProps): React.JSX.Element {
+  assert(props.onClickActions === undefined || props.onEdit === undefined);
+  if (props.onEdit !== undefined) {
+    assert(props.editDialogTitle !== undefined);
+  }
+
+  async function handleClickEdit(): Promise<void> {
+    assert(props.editDialogTitle !== undefined);
+    const result = await showInputDialog(props.editDialogTitle, "Enter a new value.", props.title);
+    if (result !== null) {
+      props.onEdit?.(result);
+    }
+  }
+
   return (
     <div className="top-bar">
       {
@@ -32,6 +48,18 @@ function ListPageTopBar(props: ListPageTopBarProps): React.JSX.Element {
             icon={faWrench}
             tooltip="Actions"
             onClick={props.onClickActions}
+          />
+        )
+      }
+      {
+        props.onEdit !== undefined && (
+          <Button
+            type="button"
+            appearance="IconOnly"
+            color="Gray"
+            icon={faPencil}
+            tooltip="Edit"
+            onClick={() => void handleClickEdit()}
           />
         )
       }
@@ -232,10 +260,6 @@ export function ListPage(props: React.PropsWithChildren<ListPageProps>): React.J
   if (activeEntry !== null) {
     return (
       <div className="list-page">
-        <ListPageTopBar
-          title={activeEntry.title}
-          backButtonAction={handleCloseEntryDetails}
-        />
         {props.renderEntryDetails(activeEntry, handleCloseEntryDetails)}
       </div>
     );

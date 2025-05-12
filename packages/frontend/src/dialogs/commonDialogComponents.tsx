@@ -1,5 +1,6 @@
 import { Model, modelValues } from "api";
 import { Checkbox } from "components/checkbox";
+import { NumberInput } from "components/numberInput";
 import { Select } from "components/select";
 import { TextInput } from "components/textInput";
 import * as React from "react";
@@ -88,7 +89,7 @@ export function CheckboxDialogSetting(props: CheckboxDialogSettingProps): React.
   );
 }
 
-interface NumberDialogSettingProps {
+interface NumberSelectDialogSettingProps {
   title: string;
   values: number[];
   suffixes: [string, string]; // Non-plural and plural
@@ -96,13 +97,31 @@ interface NumberDialogSettingProps {
   setValue: (value: number) => void;
 }
 
-export function NumberDialogSetting(props: NumberDialogSettingProps): React.JSX.Element {
+export function NumberSelectDialogSetting(props: NumberSelectDialogSettingProps): React.JSX.Element {
   return (
     <>
       <div className="label">{props.title}</div>
       <Select value={props.value} onChange={(e) => props.setValue(parseFloat(e.target.value))}>
         {props.values.map((v) => <option key={v} value={v}>{v} {v === 1 ? props.suffixes[0] : props.suffixes[1]}</option>)}
       </Select>
+    </>
+  );
+}
+
+interface IntegerDialogSettingProps {
+  title: string;
+  min: number;
+  max: number;
+  value: number;
+  setValue: (value: number) => void;
+}
+
+export function IntegerDialogSetting(props: IntegerDialogSettingProps): React.JSX.Element {
+  return (
+    <>
+      <div className="label">{props.title}</div>
+      { /* eslint-disable-next-line react/jsx-handler-names */ }
+      <NumberInput min={props.min} max={props.max} value={props.value} onChangeValue={props.setValue} />
     </>
   );
 }

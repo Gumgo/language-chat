@@ -3,8 +3,11 @@ import { doThrow } from "utilities/errors";
 export const senderValues = ["System", "Assistant", "User"] as const;
 export type Sender = typeof senderValues[number];
 
-export const modelValues = ["gpt-3.5-turbo", "gpt-4o-mini", "gpt-4", "gpt-4o", "gpt-4-turbo"] as const;
+export const modelValues = ["gpt-3.5-turbo", "gpt-4o-mini", "gpt-4", "gpt-4o", "gpt-4-turbo", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano"] as const;
 export type Model = typeof modelValues[number];
+
+export const speechServiceValues = ["Google", "Microsoft"] as const;
+export type SpeechService = typeof speechServiceValues[number];
 
 export const voiceGenderValues = ["Male", "Female"] as const;
 export type VoiceGender = typeof voiceGenderValues[number];
@@ -42,6 +45,7 @@ export interface ListVoicesApiResponse {
 
 export interface SpeechApiRequest {
   language: string;
+  service: SpeechService;
   voice: string;
   speed: number;
   message: string;
@@ -76,8 +80,8 @@ export async function chat(request: ChatApiRequest): Promise<ChatApiResponse> {
     : doThrow(new Error("Chat request failed"));
 }
 
-export async function listVoices(): Promise<ListVoicesApiResponse> {
-  const response = await fetch("/api/v1/voices");
+export async function listVoices(service: SpeechService): Promise<ListVoicesApiResponse> {
+  const response = await fetch(`/api/v1/voices/${service}`);
   return response.status >= 200 && response.status < 300
     ? await response.json() as ListVoicesApiResponse
     : doThrow(new Error("List voices request failed"));

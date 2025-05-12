@@ -10,6 +10,7 @@ import { showConversationSettingsDialog } from "dialogs/conversationSettingsDial
 import { getIetfLanguageTag } from "language";
 import * as React from "react";
 import { useParams } from "react-router-dom";
+import { activeSpeechService } from "speechService";
 import { assert, doThrow } from "utilities/errors";
 import { logError } from "utilities/logger";
 import { AudioState, useAudioPlayer } from "utilities/useAudioPlayer";
@@ -158,6 +159,7 @@ function ActiveConversationPage(props: ActiveConversationPageProps): React.JSX.E
     async (audioIdentifier: AudioIdentifier) => (await speech(
       {
         language: audioIdentifier.language,
+        service: activeSpeechService,
         voice: audioIdentifier.voice,
         speed: audioIdentifier.speed,
         message: messages.find((v) => v.id === audioIdentifier.messageId)?.content ?? doThrow(new Error("Message not found")),

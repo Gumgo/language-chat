@@ -3,7 +3,7 @@ import { ListVoicesApiResponseVoice, Model } from "api";
 import { Button } from "components/button";
 import { showDialog } from "components/dialog";
 import { VocabularyEntry } from "dataState";
-import { CheckboxDialogSetting, DialogSettingsGrid, ModelSelect, NumberDialogSetting, SpeechSpeedSelect } from "dialogs/commonDialogComponents";
+import { CheckboxDialogSetting, DialogSettingsGrid, ModelSelect, NumberSelectDialogSetting, SpeechSpeedSelect } from "dialogs/commonDialogComponents";
 import { ListeningPractice, ListeningPracticeEntry } from "exercises/listeningPractice";
 import * as React from "react";
 import { doThrow } from "utilities/errors";
@@ -131,15 +131,27 @@ export async function showListeningPracticeDialog(
             <SpeechSpeedSelect speechSpeed={speechSpeed} setSpeechSpeed={setSpeechSpeed} />
             <CheckboxDialogSetting title="Say word first" value={sayWordFirst} setValue={setSayWordFirst} />
             <CheckboxDialogSetting title="Use in sentence" value={useInSentence} setValue={setUseInSentence} />
-            <NumberDialogSetting title="Repeat word" values={repeatCounts} suffixes={["time", "times"]} value={wordRepeatCount} setValue={setWordRepeatCount} />
-            <NumberDialogSetting
+            <NumberSelectDialogSetting
+              title="Repeat word"
+              values={repeatCounts}
+              suffixes={["time", "times"]}
+              value={wordRepeatCount}
+              setValue={setWordRepeatCount}
+            />
+            <NumberSelectDialogSetting
               title="Repeat sentence"
               values={repeatCounts}
               suffixes={["time", "times"]}
               value={sentenceRepeatCount}
               setValue={setSentenceRepeatCount}
             />
-            <NumberDialogSetting title="Pause duration" values={pauseDurations} suffixes={["sec", "sec"]} value={pauseDuration} setValue={setPauseDuration} />
+            <NumberSelectDialogSetting
+              title="Pause duration"
+              values={pauseDurations}
+              suffixes={["sec", "sec"]}
+              value={pauseDuration}
+              setValue={setPauseDuration}
+            />
           </DialogSettingsGrid>
           <div className="buttons">
             <Button

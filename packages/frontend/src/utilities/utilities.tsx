@@ -72,3 +72,8 @@ export function buildCompleteMappingGetter<TKey extends { toString(): string }, 
 export function sleep(durationMilliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(() => resolve(), durationMilliseconds));
 }
+
+export function parseBoolean(value: string): boolean {
+  const v = value.toLowerCase().trim();
+  return v === "true" || v === "1";
+}

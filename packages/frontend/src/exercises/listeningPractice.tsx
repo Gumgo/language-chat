@@ -5,6 +5,7 @@ import { VocabularyEntry } from "dataState";
 import { getUseWordInSentenceProp } from "prompts";
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { activeSpeechService } from "speechService";
 import { assert } from "utilities/errors";
 import { generateIsolatedWordSpeechUrl } from "utilities/speechUtilities";
 import { useAudioPlayer } from "utilities/useAudioPlayer";
@@ -27,7 +28,7 @@ async function generateListeningPracticeEntry(
   speed: number,
   word: string,
   useInSentence: boolean): Promise<ListeningPracticeEntry> {
-  const wordAudioUrlPromise = generateIsolatedWordSpeechUrl(language, voice, speed, word);
+  const wordAudioUrlPromise = generateIsolatedWordSpeechUrl(language, activeSpeechService, voice, speed, word);
   let sentence: string | null = null;
   let sentenceAudioUrlPromise: Promise<string> | null = null;
   const promises = [wordAudioUrlPromise];
@@ -35,7 +36,16 @@ async function generateListeningPracticeEntry(
     sentenceAudioUrlPromise = (async () => {
       const prompt = getUseWordInSentenceProp(language, word);
       sentence = (await chat({ messages: [{ sender: "System", content: prompt }], model, temperature: useInSentenceTemperature })).message;
-      return (await speech({ language, message: sentence, speed, voice, ssml: false })).audioUrl;
+      const speechResponse = await speech(
+        {
+          language,
+          service: activeSpeechService,
+          message: sentence,
+          speed,
+          voice,
+          ssml: false,
+        });
+      return speechResponse.audioUrl;
     })();
     promises.push(sentenceAudioUrlPromise);
   }
