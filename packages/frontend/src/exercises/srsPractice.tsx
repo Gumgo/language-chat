@@ -122,13 +122,13 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
     if (currentLockedGrammarRule !== null) {
       isGrammarRuleSrs = false;
       grammarRule = currentLockedGrammarRule;
-    } else if (currentRemainingSrsGrammarRules.length > 0) {
+    } else if (currentRemainingSrsGrammarRules.length > 0 && currentLockedWord === null) {
       // Choose an SRS grammar rule
       isGrammarRuleSrs = true;
       const grammarRuleIndex = Math.floor(Math.random() * currentRemainingSrsGrammarRules.length);
       grammarRule = currentRemainingSrsGrammarRules[grammarRuleIndex];
     } else if (props.settings.allGrammarRules.length > 0) {
-      // Just choose a random grammar rule if no SRS items are available
+      // Just choose a random grammar rule if no SRS items are available or if we're using a locked word
       isGrammarRuleSrs = false;
       const grammarRuleIndex = Math.floor(Math.random() * props.settings.allGrammarRules.length);
       grammarRule = props.settings.allGrammarRules[grammarRuleIndex];
