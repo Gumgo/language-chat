@@ -146,7 +146,7 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
       practiceWords = [currentLockedWord.word];
     } else {
       // Choose some random possible SRS words
-      practiceWords = shuffle(remainingSrsWords.current).map((v) => v.word).slice(0, practiceWordCount); // This is inefficient but convenient
+      practiceWords = shuffle(currentRemainingSrsWords).map((v) => v.word).slice(0, practiceWordCount); // This is inefficient but convenient
     }
 
     const fillerWords = fillerWordChooser.current.choose(fillerWordCount, practiceWords);
@@ -406,6 +406,10 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
             const newRemainingGrammarRules = data.isGrammarRuleSrs
               ? remainingSrsGrammarRules.current.filter((rule) => rule !== data.grammarRule)
               : [...remainingSrsGrammarRules.current];
+            console.log("EXCLUDING THESE WORDS:");
+            console.log(srsWords);
+            console.log("REMAINING WORD SET:");
+            console.log(newRemainingSrsWords);
             generatePromise = generateNextSentenceWithRetries(
               newRemainingSrsWords,
               newRemainingGrammarRules,
@@ -553,7 +557,7 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
                         assert(unmodifiedWord !== undefined);
                         const srsResult = vocabularySrsResultsState.get(unmodifiedWord);
                         const wordClassNames: string[] = [];
-                        if (v.type === "FillerWord") {
+                        if (v.type === "FillerWord" || v.type === "LockedWord") {
                           wordClassNames.push("filler");
                         } else if (srsResult === undefined) {
                           wordClassNames.push("unresolved");
