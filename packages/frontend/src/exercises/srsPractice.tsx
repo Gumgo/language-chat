@@ -406,10 +406,6 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
             const newRemainingGrammarRules = data.isGrammarRuleSrs
               ? remainingSrsGrammarRules.current.filter((rule) => rule !== data.grammarRule)
               : [...remainingSrsGrammarRules.current];
-            console.log("EXCLUDING THESE WORDS:");
-            console.log(srsWords);
-            console.log("REMAINING WORD SET:");
-            console.log(newRemainingSrsWords);
             generatePromise = generateNextSentenceWithRetries(
               newRemainingSrsWords,
               newRemainingGrammarRules,
