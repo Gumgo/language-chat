@@ -20,13 +20,6 @@ import { activeSpeechService } from "speechService";
 import { logError } from "utilities/logger";
 import { useIsMounted } from "utilities/useIsMounted";
 
-// $TODO:
-// - Add "Extra instructions" box for conversations
-// - Add a speech page with actions:
-//   - Say this word (use the high quality voices)
-//   - Use this word in a sentence (generate a sentence automatically)
-//   - Button to download the audio clip
-
 const firebaseOptions: FirebaseOptions = {
   apiKey: "AIzaSyDR10RFmWNcWH9zhamlgA5V5fwpGIQdW8E",
   authDomain: "language-chat-9bc61.firebaseapp.com",
@@ -38,7 +31,10 @@ const firebaseOptions: FirebaseOptions = {
   measurementId: "G-YMHBSSFTPN",
 };
 
-const useEmulatorDatabase = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
+const useProductionDatabaseWhenTesting = true; // !!!
+
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+const useEmulatorDatabase = (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost") && !useProductionDatabaseWhenTesting;
 if (useEmulatorDatabase) {
   firebaseOptions.databaseURL = "http://127.0.0.1:9000/?ns=language-chat-default-rtdb";
 }

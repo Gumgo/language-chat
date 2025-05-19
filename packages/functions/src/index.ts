@@ -1,4 +1,5 @@
 import { protos, v1beta1 } from "@google-cloud/text-to-speech";
+import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import * as ajv from "ajv";
 import assert from "assert";
 import * as bodyParser from "body-parser";
@@ -8,10 +9,10 @@ import * as admin from "firebase-admin";
 import { getDownloadURL, getStorage } from "firebase-admin/storage";
 import * as functions from "firebase-functions";
 import { existsSync } from "fs";
+import { CancellationDetails, ResultReason, SpeechConfig, SpeechSynthesisOutputFormat, SpeechSynthesisResult, SpeechSynthesizer, SynthesisVoiceGender, SynthesisVoiceType } from "microsoft-cognitiveservices-speech-sdk";
 import OpenAI from "openai";
 import * as path from "path";
 import { encoding_for_model, TiktokenModel } from "tiktoken";
-import { ResultReason, SpeechConfig, SpeechSynthesisOutputFormat, SpeechSynthesisResult, SpeechSynthesizer, SynthesisVoiceGender, SynthesisVoiceType } from "microsoft-cognitiveservices-speech-sdk";
 
 const microsoftSpeechSdkRegion = "westus";
 
@@ -48,6 +49,97 @@ let globals: Globals | null = null;
 
 function getGlobals(): Globals {
   return globals ?? doThrow(new Error("Globals not initialized"));
+}
+
+// These time value suffixes are sorted from longest to shortest so that find() can be used to identify the first matching one
+const timeValueSuffixes = ["s", "ms"].sort((a, b) => b.length - a.length);
+
+function scaleTimeValue(value: string, scale: number): string | null {
+  const trimmedValue = value.trim();
+  const suffix = timeValueSuffixes.find((v) => trimmedValue.endsWith(v));
+  if (suffix === undefined) {
+    return null;
+  }
+
+  const parsedValue = parseFloat(trimmedValue.substring(0, trimmedValue.length - suffix.length));
+  if (isNaN(parsedValue)) {
+    return null;
+  }
+
+  return `${parsedValue * scale}${suffix}`;
+}
+
+function scaleSsmlSpeechSpeed(message: string, scale: number): string | null {
+  const domParser = new DOMParser();
+  const xmlDocument = domParser.parseFromString(message, "application/xml");
+  const rootNode = xmlDocument.documentElement;
+  if (rootNode === null || rootNode.getElementsByTagName("parsererror").length > 0 || rootNode.tagName !== "speak") {
+    return null;
+  }
+
+  // Find the root voice tag
+  const rootVoiceNode = [...rootNode.getElementsByTagName("voice")].find((v) => v.parentElement === rootNode);
+  if (rootVoiceNode === undefined) {
+    return null;
+  }
+
+  // Add a root-level prosody tag to slow down speech
+  const rootProsodyNode = xmlDocument.createElement("prosody");
+  rootProsodyNode.setAttribute("rate", `${scale}`);
+
+  // Move over children
+  const rootChildren = [...rootVoiceNode.childNodes];
+  for (const child of rootChildren) {
+    rootVoiceNode.removeChild(child);
+    rootProsodyNode.appendChild(child);
+  }
+
+  rootVoiceNode.appendChild(rootProsodyNode);
+
+  // Find any prosody nodes with the "rate" attribute and scale the value
+  for (const prosodyNode of rootProsodyNode.getElementsByTagName("prosody")) {
+    if (prosodyNode === rootProsodyNode) {
+      continue;
+    }
+
+    const rate = prosodyNode.getAttribute("rate");
+    if (rate !== null) {
+      const rateValue = parseFloat(rate);
+      if (isNaN(rateValue)) {
+        // Only number values are supported, not "low", "medium", "high", etc. because we need the ability to scale the rate
+        return null;
+      }
+
+      const scaledRateValue = rateValue * scale;
+      prosodyNode.setAttribute("rate", scaledRateValue.toString());
+    }
+
+    const duration = prosodyNode.getAttribute("duration");
+    if (duration !== null) {
+      const scaledDuration = scaleTimeValue(duration, scale);
+      if (scaledDuration === null) {
+        return null;
+      }
+
+      prosodyNode.setAttribute("duration", scaledDuration);
+    }
+  }
+
+  // Find any break nodes and scale the time value
+  for (const breakNode of rootProsodyNode.getElementsByTagName("break")) {
+    const time = breakNode.getAttribute("time");
+    if (time !== null) {
+      const scaledTime = scaleTimeValue(time, scale);
+      if (scaledTime === null) {
+        return null;
+      }
+
+      breakNode.setAttribute("time", scaledTime);
+    }
+  }
+
+  const xmlSerializer = new XMLSerializer();
+  return xmlSerializer.serializeToString(rootNode);
 }
 
 // Environment variables aren't available until the function runs so we lazily-initialize globals
@@ -477,23 +569,52 @@ app.post(
         const timepoints: SpeechTimepoints = { timepoints: [] };
         speechSynthesizer.bookmarkReached = (_, event) => timepoints.timepoints.push({ markName: event.text, timeSeconds: event.audioOffset / 10000000 });
 
-        // $TODO if we're already using SSML, speech speed currently isn't supported because we'd need to scale any existing prosody tags. Should probably
-        // implement this for story mode once I get back to it.
+        let message = body.message;
+        let ssml = body.ssml;
+        if (ssml && !message.trim().startsWith("<speak ")) {
+          // For convenience, we don't require the speak tag to be explicitly provided
+          message = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${languageCode}">`
+            + `<voice name="${body.voice}">${body.message}</voice></speak>`;
+        }
+
+        if (body.speed !== 100) {
+          ssml = true;
+          if (body.ssml) {
+            // We need to scale any existing SSML prosody rate values
+            const scaleResult = scaleSsmlSpeechSpeed(message, body.speed * 0.01);
+            if (scaleResult === null) {
+              res.sendStatus(400);
+              return;
+            }
+
+            message = scaleResult;
+          } else {
+            message = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${languageCode}">`
+              + `<voice name="${body.voice}"><prosody rate="${body.speed * 0.01}">${message}</prosody></voice></speak>`;
+          }
+        }
+
         const result = await new Promise<SpeechSynthesisResult>(
           (resolve) => {
-            if (body.ssml) {
-              speechSynthesizer.speakSsmlAsync(body.message, resolve);
-            } else if (body.speed !== 100) {
-              const message =
-                `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${languageCode}}">`
-                + `<voice name="${body.voice}"><prosody rate="${body.speed * 0.01}">${body.message}</prosody></voice></speak>`;
+            if (ssml) {
               speechSynthesizer.speakSsmlAsync(message, resolve);
             } else {
-              speechSynthesizer.speakTextAsync(body.message, resolve);
+              speechSynthesizer.speakTextAsync(message, resolve);
             }
           });
 
         if (result.reason !== ResultReason.SynthesizingAudioCompleted) {
+          // This logging is useful to diagnose issues
+          console.log("Speech synthesis failed");
+          console.log(`Message: ${message}`);
+          console.log(`Failure reason: ${result.reason}`);
+          if (result.reason === ResultReason.Canceled) {
+            const cancellationDetails = CancellationDetails.fromResult(result);
+            console.log(`  Cancellation code: ${cancellationDetails.ErrorCode}`);
+            console.log(`  Cancellation reason: ${cancellationDetails.reason}`);
+            console.log(`  Cancellation error details: ${cancellationDetails.errorDetails}`);
+          }
+
           res.sendStatus(500);
           return;
         }

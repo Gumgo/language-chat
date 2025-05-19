@@ -7,7 +7,6 @@ import { SrsPracticeMode, srsPracticeModes, SrsPracticeSettings } from "exercise
 import * as React from "react";
 import { logError } from "utilities/logger";
 import { runQuery } from "utilities/query";
-import { shuffle } from "utilities/shuffle";
 import { calculateSrsStats } from "utilities/srs";
 import { useIsMounted } from "utilities/useIsMounted";
 import { LocalStorageCategory } from "utilities/useLocalStorage";
@@ -15,6 +14,7 @@ import { parseBoolean } from "utilities/utilities";
 
 const defaultModel: Model = "gpt-4.1";
 const defaultWordsQuery = "";
+const defaultGrammarRulesQuery = "";
 
 export async function showSrsPracticeDialog(
   language: string,
@@ -31,7 +31,7 @@ export async function showSrsPracticeDialog(
       const [newWordCount, setNewWordCount] = cat.useLocalStorageState("newWordCount", parseInt, 0);
       const [onlyUnlockedWords, setOnlyUnlockedWords] = cat.useLocalStorageState("onlyUnlockedWords", parseBoolean, false);
 
-      // Currently, grammar rules don't have tags so they don't get a query field
+      const [grammarRulesQuery, setGrammarRulesQuery] = cat.useLocalStorageState("grammarRulesQuery", (v) => v, defaultGrammarRulesQuery);
       const [grammarRulePracticeMode, setGrammarRulePracticeMode] = cat.useLocalStorageState("grammarRulePracticeMode", (v) => v as SrsPracticeMode, "Srs");
       const [newGrammarRuleCount, setNewGrammarRuleCount] = cat.useLocalStorageState("newGrammarRuleCount", parseInt, 0);
       const [onlyUnlockedGrammarRules, setOnlyUnlockedGrammarRules] = cat.useLocalStorageState("onlyUnlockedGrammarRules", parseBoolean, true);
@@ -56,6 +56,23 @@ export async function showSrsPracticeDialog(
           return resultIndices.map((i) => vocabularyEntries[i]);
         },
         [wordsQuery, date, vocabularyEntries]);
+
+      const filteredGrammarRuleEntries = React.useMemo(
+        () => {
+          const resultIndices = runQuery(
+            grammarRuleEntries.map(
+              (v) => (
+                {
+                  searchableText: [v.name],
+                  tags: [],
+                  creationDate: v.creationDate,
+                  srsStrength: calculateSrsStats(v.listeningSrsReviews, date).strength,
+                })),
+            grammarRulesQuery,
+            date);
+          return resultIndices.map((i) => grammarRuleEntries[i]);
+        },
+        [grammarRulesQuery, date, grammarRuleEntries]);
 
       const isMounted = useIsMounted();
 
@@ -111,7 +128,7 @@ export async function showSrsPracticeDialog(
           }
 
           if (grammarRulePracticeMode === "Srs") {
-            for (const entry of grammarRuleEntries) {
+            for (const entry of filteredGrammarRuleEntries) {
               if (entry.listeningSrsReviews.size === 0) {
                 if (result.newGrammarRuleCount < newGrammarRuleCount) {
                   result.newGrammarRuleCount++;
@@ -124,9 +141,9 @@ export async function showSrsPracticeDialog(
 
           return result;
         },
-        [date, filteredVocabularyEntries, wordPracticeMode, newWordCount, grammarRulePracticeMode, newGrammarRuleCount]);
+        [date, filteredVocabularyEntries, wordPracticeMode, newWordCount, filteredGrammarRuleEntries, grammarRulePracticeMode, newGrammarRuleCount]);
 
-      function generateSrsEntries<T extends { listeningSrsReviews: Map<Date, boolean> }>(
+      function generateSrsEntries<T extends { creationDate: Date; listeningSrsReviews: Map<Date, boolean> }>(
         practiceMode: SrsPracticeMode,
         entries: T[], newEntryCount: number,
       ): T[] {
@@ -144,8 +161,9 @@ export async function showSrsPracticeDialog(
           }
         }
 
-        const shuffledPossibleNewEntries = shuffle(possibleNewEntries); // This is sub-optimal but easy
-        srsEntries.push(...shuffledPossibleNewEntries.slice(0, newEntryCount));
+        // Introduce new entries by their creation date
+        possibleNewEntries.sort((a, b) => a.creationDate.getTime() - b.creationDate.getTime());
+        srsEntries.push(...possibleNewEntries.slice(0, newEntryCount));
         return srsEntries;
       }
 
@@ -157,8 +175,8 @@ export async function showSrsPracticeDialog(
           allWords: onlyUnlockedWords ? filteredVocabularyEntries.filter((v) => v.listeningSrsReviews.size > 0) : filteredVocabularyEntries,
           srsWords: generateSrsEntries(wordPracticeMode, filteredVocabularyEntries, newWordCount),
           grammarRulePracticeMode,
-          allGrammarRules: onlyUnlockedGrammarRules ? grammarRuleEntries.filter((v) => v.listeningSrsReviews.size > 0) : grammarRuleEntries,
-          srsGrammarRules: generateSrsEntries(grammarRulePracticeMode, grammarRuleEntries, newGrammarRuleCount),
+          allGrammarRules: onlyUnlockedGrammarRules ? filteredGrammarRuleEntries.filter((v) => v.listeningSrsReviews.size > 0) : filteredGrammarRuleEntries,
+          srsGrammarRules: generateSrsEntries(grammarRulePracticeMode, filteredGrammarRuleEntries, newGrammarRuleCount),
         };
 
         dialogProps.onClose(settings);
@@ -166,7 +184,7 @@ export async function showSrsPracticeDialog(
 
       return (
         <div className="options-dialog-container">
-          <h3>Grammar rule practice</h3>
+          <h3>SRS practice</h3>
           <DialogSettingsGrid>
             <ModelSelect model={model} setModel={setModel} />
             <SpeechSpeedSelect speechSpeed={speechSpeed} setSpeechSpeed={setSpeechSpeed} />
@@ -174,6 +192,12 @@ export async function showSrsPracticeDialog(
             <EnumDialogSetting<SrsPracticeMode> title="Word mode" values={srsPracticeModes} value={wordPracticeMode} setValue={setWordPracticeMode} />
             <IntegerDialogSetting title="New word count" min={0} max={100} value={newWordCount} setValue={setNewWordCount} />
             <CheckboxDialogSetting title="Only unlocked words" value={onlyUnlockedWords} setValue={setOnlyUnlockedWords} />
+            <WordsQuery
+              title="Grammar rules query"
+              wordsQuery={grammarRulesQuery}
+              setWordsQuery={setGrammarRulesQuery}
+              resultCount={filteredGrammarRuleEntries.length}
+            />
             <EnumDialogSetting<SrsPracticeMode>
               title="Grammar rule mode"
               values={srsPracticeModes}

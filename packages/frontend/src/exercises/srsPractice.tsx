@@ -1,9 +1,9 @@
-import { ListVoicesApiResponseVoice, speech } from "api";
+import { ListVoicesApiResponseVoice, speech, SpeechApiResponse } from "api";
 import { Button } from "components/button";
 import { GestureScreen, GestureScreenBottomControls, GestureScreenGestureAreaContent, useGestureDetector } from "components/gestureScreen";
 import { DataState, GrammarRuleEntry, VocabularyEntry } from "dataState";
 import { SrsPracticeSettings } from "exercises/srsPracticeTypes";
-import { GrammarRuleSentenceGenerator, Sentence } from "exercises/grammarRuleSentenceGenerator";
+import { generateGrammarRuleSentence, GenerateGrammarRuleSentenceResult, SentencePart } from "exercises/grammarRuleSentenceGenerator";
 import * as React from "react";
 import { activeSpeechService } from "speechService";
 import { assert, doThrow } from "utilities/errors";
@@ -18,6 +18,8 @@ import { classNames } from "utilities/utilities";
 
 const practiceWordCount = 20;
 const fillerWordCount = 200;
+
+const isolatedWordsBreakTime = "300ms";
 
 class FillerChooser {
   private readonly items: string[];
@@ -46,6 +48,55 @@ class FillerChooser {
     }
 
     return results;
+  }
+}
+
+class SpeechClip {
+  private readonly language: string;
+  private readonly text: string;
+  private readonly ssml: boolean;
+  private currentVoice: string;
+  private currentSpeechSpeed: number;
+  private lastSetVoice: string;
+  private lastSetSpeechSpeed: number;
+  private speechResponse: SpeechApiResponse | null = null;
+
+  public constructor(language: string, text: string, ssml: boolean, voice: string, speechSpeed: number) {
+    this.language = language;
+    this.text = text;
+    this.ssml = ssml;
+    this.currentVoice = voice;
+    this.currentSpeechSpeed = speechSpeed;
+    this.lastSetVoice = voice;
+    this.lastSetSpeechSpeed = speechSpeed;
+  }
+
+  public set voice(voice: string) {
+    this.lastSetVoice = voice;
+  }
+
+  public set speechSpeed(speechSpeed: number) {
+    this.lastSetSpeechSpeed = speechSpeed;
+  }
+
+  public async get(): Promise<SpeechApiResponse> {
+    if (this.speechResponse === null
+      || this.currentVoice !== this.lastSetVoice
+      || this.currentSpeechSpeed !== this.lastSetSpeechSpeed) {
+      this.currentVoice = this.lastSetVoice;
+      this.currentSpeechSpeed = this.lastSetSpeechSpeed;
+      this.speechResponse = await speech(
+        {
+          language: this.language,
+          service: activeSpeechService,
+          voice: this.currentVoice,
+          speed: this.currentSpeechSpeed,
+          message: this.text,
+          ssml: this.ssml,
+        });
+    }
+
+    return this.speechResponse;
   }
 }
 
@@ -81,16 +132,11 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
 
   const gestureDetectorData = useGestureDetector();
 
-  const [revealedGrammarRule, setRevealedGrammarRule] = React.useState<GrammarRuleEntry | null>(null);
-  const [revealedGrammarRuleIsSrs, setRevealedGrammarRuleIsSrs] = React.useState(false);
-  const [revealedSentence, setRevealedSentence] = React.useState<Sentence | null>(null);
-  const submitActionData = useRepeatableAction();
-
-  const [grammarRuleSrsResultState, grammarRuleSrsResultRef, setGrammarRuleSrsResult] = useStateRef<boolean | null>(null);
-  const [vocabularySrsResultsState, vocabularySrsResultsRef, setVocabularySrsResults] = useStateRef<Map<string, boolean>>(new Map());
-
   interface GenerateNextSentenceResultData {
-    sentence: Sentence;
+    sentence: string;
+    englishSentence: string;
+    sentenceParts: SentencePart[];
+    sentenceWithIsolatedWords: string;
     grammarRule: GrammarRuleEntry;
     isGrammarRuleSrs: boolean;
     lockedWord: VocabularyEntry | null;
@@ -98,10 +144,16 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
   }
 
   interface GenerateNextSentenceResult {
-    result: "Success" | "NoMoreItems" | "BadGrammarRule" | "IncompatibleWords" | "BadGrammarRuleUsage" | "BadMeaning" | "Stop";
+    result: GenerateGrammarRuleSentenceResult;
     errorGrammarRule?: GrammarRuleEntry; // Used to report grammar rule errors when the below data is not available
     data?: GenerateNextSentenceResultData;
   }
+
+  const [revealedData, setRevealedData] = React.useState<GenerateNextSentenceResultData | null>(null);
+  const submitActionData = useRepeatableAction();
+
+  const [grammarRuleSrsResultState, grammarRuleSrsResultRef, setGrammarRuleSrsResult] = useStateRef<boolean | null>(null);
+  const [vocabularySrsResultsState, vocabularySrsResultsRef, setVocabularySrsResults] = useStateRef<Map<string, boolean>>(new Map());
 
   async function generateNextSentence(
     currentRemainingSrsWords: VocabularyEntry[],
@@ -151,59 +203,23 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
 
     const fillerWords = fillerWordChooser.current.choose(fillerWordCount, practiceWords);
 
-    const sentenceGenerator = new GrammarRuleSentenceGenerator(props.language, props.settings.model, grammarRule, practiceWords, fillerWords);
+    const [result, resultData] = await generateGrammarRuleSentence(
+      props.language,
+      props.settings.model,
+      grammarRule,
+      practiceWords,
+      fillerWords,
+      () => !isMounted.current);
 
-    const generateSentenceResult = await sentenceGenerator.generateSentence();
-    if (generateSentenceResult !== "Success") {
-      return { result: generateSentenceResult, errorGrammarRule: grammarRule };
+    if (result !== "Success") {
+      return { result, errorGrammarRule: grammarRule };
     }
 
-    if (!isMounted.current) {
-      return { result: "Stop" };
-    }
-
-    if (!await sentenceGenerator.reviewGrammarRuleUsage()) {
-      return { result: "BadGrammarRuleUsage", errorGrammarRule: grammarRule };
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    if (!isMounted.current) {
-      return { result: "Stop" };
-    }
-
-    if (!await sentenceGenerator.reviewMeaning()) {
-      return { result: "BadMeaning", errorGrammarRule: grammarRule };
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    if (!isMounted.current) {
-      return { result: "Stop" };
-    }
-
-    await sentenceGenerator.formatSentence();
-
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    if (!isMounted.current) {
-      return { result: "Stop" };
-    }
-
-    let sentence: Sentence | null = null;
-    for (let attempt = 0; attempt < 3 && sentence === null; attempt++) {
-      sentence = await sentenceGenerator.validateSentence();
-
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (!isMounted.current) {
-        return { result: "Stop" };
-      }
-    }
-
-    if (sentence === null) {
-      throw new Error("Generated sentence formatting failed");
-    }
+    assert(resultData !== null);
 
     if (currentLockedWord !== null) {
       // If we have a word locked, that word was prioritized as a PracticeWord so that it would get chosen, but it shouldn't count against SRS
-      for (const part of sentence.languageSentenceParts) {
+      for (const part of resultData.sentenceParts) {
         if (part.type === "PracticeWord") {
           part.type = "LockedWord";
         }
@@ -213,7 +229,10 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
     return {
       result: "Success",
       data: {
-        sentence,
+        sentence: resultData.sentence,
+        englishSentence: resultData.englishSentence,
+        sentenceParts: resultData.sentenceParts,
+        sentenceWithIsolatedWords: resultData.sentenceWithIsolatedWords,
         grammarRule,
         isGrammarRuleSrs,
         lockedWord: currentLockedWord,
@@ -232,15 +251,15 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
     let failedCount = 0;
     while (true) {
       if (!isMounted.current) {
-        return { result: "Stop" };
+        return { result: "Cancelled" };
       }
 
       const result = await generateNextSentence(currentRemainingSrsWords, currentRemainingSrsGrammarRules, currentLockedWord, currentLockedGrammarRule);
       switch (result.result) {
       case "Success":
+      case "Cancelled":
       case "NoMoreItems":
       case "BadGrammarRule":
-      case "Stop":
         return result;
 
       case "IncompatibleWords":
@@ -254,33 +273,30 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
         }
 
         break;
+
+      case "FinalizeRawSentenceFailed":
+      case "FormatSentenceFailed":
+      case "IsolateWordsFailed":
+      case "UnexpectedError":
+        return result;
       }
     }
   }
 
   async function runSingle(generateSentenceResult: GenerateNextSentenceResultData): Promise<boolean> {
-    const sentence = generateSentenceResult.sentence;
-    const grammarRule = generateSentenceResult.grammarRule;
+    let voiceIndex = Math.floor(Math.random() * props.voices.length);
+    let voice = props.voices[voiceIndex];
 
-    const languageSentenceForSpeech = sentence.languageSentenceParts.map((v) => v.content).join("");
-    const voice = props.voices[Math.floor(Math.random() * props.voices.length)];
+    const sentenceWithIsolatedWords = generateSentenceResult.sentenceWithIsolatedWords.replaceAll("|", `<break time="${isolatedWordsBreakTime}" />`);
+    const speechClip = new SpeechClip(props.language, generateSentenceResult.sentence, false, voice.name, speechSpeedRef.current);
+    const isolatedWordsSpeechClip = new SpeechClip(props.language, sentenceWithIsolatedWords, true, voice.name, speechSpeedRef.current);
 
-    setDisplayMessage("Generating...");
-
-    let currentSpeechSpeed = speechSpeedRef.current;
-    let speechResponse = await speech(
-      {
-        language: props.language,
-        service: activeSpeechService,
-        voice: voice.name,
-        speed: currentSpeechSpeed,
-        message: languageSentenceForSpeech,
-        ssml: false,
-      });
-
-    setDisplayMessage("");
-
-    audioPlayer.playAudio(speechResponse.audioUrl);
+    {
+      setDisplayMessage("Generating...");
+      const speechResponse = await speechClip.get();
+      setDisplayMessage("");
+      audioPlayer.playAudio(speechResponse.audioUrl);
+    }
 
     let done = false;
     while (!done) {
@@ -295,14 +311,20 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
           return false;
 
         case "Tap":
-          setRevealedGrammarRule(grammarRule);
-          setRevealedGrammarRuleIsSrs(generateSentenceResult.isGrammarRuleSrs);
-          setRevealedSentence(sentence);
+          setRevealedData(generateSentenceResult);
           break;
 
         case "SwipeLeft":
         case "SwipeRight":
-          // Nothing to do
+          // Switch to a random voice which is different from the current voice (unless there's only one voice)
+          if (props.voices.length > 1) {
+            const newVoiceIndex = Math.floor(Math.random() * (props.voices.length - 1));
+            voiceIndex = newVoiceIndex < voiceIndex
+              ? newVoiceIndex
+              : newVoiceIndex + 1;
+            voice = props.voices[voiceIndex];
+          }
+
           break;
 
         case "SwipeUp":
@@ -314,25 +336,17 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
           break;
 
         case "SpinClockwise":
-        case "SpinCounterClockwise":
-          if (currentSpeechSpeed !== speechSpeedRef.current) {
-            setDisplayMessage("Generating...");
-            currentSpeechSpeed = speechSpeedRef.current;
-            speechResponse = await speech(
-              {
-                language: props.language,
-                service: activeSpeechService,
-                voice: voice.name,
-                speed: currentSpeechSpeed,
-                message: languageSentenceForSpeech,
-                ssml: false,
-              });
-            setDisplayMessage("");
+        {
+          speechClip.voice = voice.name;
+          speechClip.speechSpeed = speechSpeedRef.current;
 
-            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-            if (!isMounted.current) {
-              return false;
-            }
+          setDisplayMessage("Generating...");
+          const speechResponse = await speechClip.get();
+          setDisplayMessage("");
+
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+          if (!isMounted.current) {
+            return false;
           }
 
           // Replay the audio clip
@@ -340,16 +354,35 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
           audioPlayer.playAudio(speechResponse.audioUrl);
           break;
         }
+
+        case "SpinCounterClockwise":
+        {
+          isolatedWordsSpeechClip.voice = voice.name;
+          isolatedWordsSpeechClip.speechSpeed = speechSpeedRef.current;
+
+          setDisplayMessage("Generating...");
+          const speechResponse = await isolatedWordsSpeechClip.get();
+          setDisplayMessage("");
+
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+          if (!isMounted.current) {
+            return false;
+          }
+
+          // Replay the audio clip
+          audioPlayer.stopAudio();
+          audioPlayer.playAudio(speechResponse.audioUrl);
+          break;
+        }
+        }
       } else if (submitActionData.actionCount.current > submitCount) {
         done = true;
       }
     }
 
-    setRevealedGrammarRule(null);
-    setRevealedGrammarRuleIsSrs(false);
-    setRevealedSentence(null);
+    setRevealedData(null);
 
-    for (const part of sentence.languageSentenceParts) {
+    for (const part of generateSentenceResult.sentenceParts) {
       if (part.type === "PracticeWord") {
         const wordIndex = remainingSrsWords.current.findIndex((v) => v.word === part.unmodifiedWord);
         remainingSrsWords.current.splice(wordIndex, 1);
@@ -361,10 +394,14 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
     }
 
     if (generateSentenceResult.isGrammarRuleSrs) {
-      remainingSrsGrammarRules.current.splice(remainingSrsGrammarRules.current.indexOf(grammarRule), 1);
+      remainingSrsGrammarRules.current.splice(remainingSrsGrammarRules.current.indexOf(generateSentenceResult.grammarRule), 1);
 
       if (grammarRuleSrsResultRef.current !== null) {
-        await props.dataState.addGrammarRuleEntrySrsReview(props.language, grammarRule.id, srsDate.current, grammarRuleSrsResultRef.current);
+        await props.dataState.addGrammarRuleEntrySrsReview(
+          props.language,
+          generateSentenceResult.grammarRule.id,
+          srsDate.current,
+          grammarRuleSrsResultRef.current);
       }
     }
 
@@ -401,7 +438,7 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
             // Start generating the next sentence so it can run in the background. Since we're starting generation before we've gotten the result, assume that
             // SRS items were removed from the queue.
             const data = result.data;
-            const srsWords = new Set(result.data.sentence.languageSentenceParts.filter((v) => v.type === "PracticeWord").map((v) => v.unmodifiedWord));
+            const srsWords = new Set(result.data.sentenceParts.filter((v) => v.type === "PracticeWord").map((v) => v.unmodifiedWord));
             const newRemainingSrsWords = remainingSrsWords.current.filter((word) => !srsWords.has(word.word));
             const newRemainingGrammarRules = data.isGrammarRuleSrs
               ? remainingSrsGrammarRules.current.filter((rule) => rule !== data.grammarRule)
@@ -426,6 +463,9 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
 
           break;
 
+        case "Cancelled":
+          return;
+
         case "NoMoreItems":
           setDisplayMessage("No more items to practice");
           return;
@@ -447,7 +487,20 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
           setDisplayMessage("Failed to generate meaningful sentence");
           return;
 
-        case "Stop":
+        case "FinalizeRawSentenceFailed":
+          setDisplayMessage("Failed to finalize raw sentence");
+          return;
+
+        case "FormatSentenceFailed":
+          setDisplayMessage("Failed to format sentence");
+          return;
+
+        case "IsolateWordsFailed":
+          setDisplayMessage("Failed to isolate words");
+          return;
+
+        case "UnexpectedError":
+          setDisplayMessage("Unexpected error");
           return;
         }
       } catch (error) {
@@ -477,7 +530,7 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
   }
 
   const grammarRuleClassNames: string[] = [];
-  if (!revealedGrammarRuleIsSrs) {
+  if (!(revealedData?.isGrammarRuleSrs ?? false)) {
     grammarRuleClassNames.push("filler");
   } else if (grammarRuleSrsResultState === null) {
     grammarRuleClassNames.push("unresolved");
@@ -485,16 +538,20 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
     grammarRuleClassNames.push(grammarRuleSrsResultState ? "passed" : "failed");
   }
 
-  if (lockedGrammarRuleState !== null && lockedGrammarRuleState === revealedGrammarRule) {
+  if (lockedGrammarRuleState !== null && revealedData !== null && lockedGrammarRuleState === revealedData.grammarRule) {
     grammarRuleClassNames.push("locked");
   }
 
   function handleClickGrammarRule(): void {
+    if (revealedData === null) {
+      return;
+    }
+
     if (locking) {
       setLocking(false);
       setLockedWord(null);
-      setLockedGrammarRule(revealedGrammarRule);
-    } else if (revealedGrammarRuleIsSrs) {
+      setLockedGrammarRule(revealedData.grammarRule);
+    } else if (revealedData.isGrammarRuleSrs) {
       switch (grammarRuleSrsResultState) {
       case null:
         setGrammarRuleSrsResult(false);
@@ -539,14 +596,14 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
           )
         }
         {
-          revealedSentence !== null && (
+          revealedData !== null && (
             <div className="srs-practice-revealed-content">
               <span className={classNames("grammar-rule-name", "highlighted-item", ...grammarRuleClassNames)} onClick={handleClickGrammarRule}>
-                {revealedGrammarRule?.name}
+                {revealedData.grammarRule.name}
               </span>
               <div className="language-sentence">
                 {
-                  revealedSentence.languageSentenceParts.map(
+                  revealedData.sentenceParts.map(
                     (v, i) => {
                       if (v.type !== "Text") {
                         const unmodifiedWord = v.unmodifiedWord;
@@ -611,7 +668,7 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
                 }
               </div>
               <hr />
-              <div className="english-sentence">{revealedSentence.englishSentence}</div>
+              <div className="english-sentence">{revealedData.englishSentence}</div>
               <Button type="button" appearance="Standard" color="Primary" className="submit-button" onClick={handleClickSubmit}>Submit</Button>
             </div>
           )

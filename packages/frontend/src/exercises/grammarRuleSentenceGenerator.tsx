@@ -1,18 +1,14 @@
 import { Agent } from "agent";
 import { Model } from "api";
 import { GrammarRuleEntry } from "dataState";
-import { assert } from "utilities/errors";
-import { logInfo } from "utilities/logger";
+import { assert, CustomError } from "utilities/errors";
 import { shuffle } from "utilities/shuffle";
 
 const sentenceGenerationTemperature = 1;
+const logChatForDebugging = true; // !!! I'm leaving this uncommented to shake out bugs in this system
 
-function logPromptData(message: unknown): void {
-  // Uncomment this for prompt debug logging
-  logInfo(message); // !!! I'm leaving this uncommented to shake out bugs in this system
-}
-
-export type SentencePartType = "Text" | "PracticeWord" | "FillerWord" | "LockedWord" | "UnknownWord";
+// LockedWord is in this list for convenience - we switch over from PracticeWord to LockedWord after sentence generation
+export type SentencePartType = "Text" | "PracticeWord" | "FillerWord" | "LockedWord";
 
 export interface SentencePart {
   type: SentencePartType;
@@ -20,66 +16,108 @@ export interface SentencePart {
   unmodifiedWord?: string;
 }
 
-export interface Sentence {
-  languageSentenceParts: SentencePart[];
+export interface GenerateGrammarRuleSentenceResultData {
+  sentence: string;
   englishSentence: string;
+  sentenceParts: SentencePart[];
+  sentenceWithIsolatedWords: string;
 }
 
-function parseSentence(message: string, practiceWords: string[], fillerWords: string[]): Sentence {
-  const lines = message.split("\n").filter((v) => v.length > 0); // Ignore extra empty linebreaks, sometimes they occur
-  if (lines.length !== 2) {
-    throw new Error("Invalid grammar rule practice message: incorrect line count");
+class ParseSentenceError extends CustomError {
+  private readonly _errorDescription: string;
+
+  public constructor(errorDescription: string) {
+    super(`Parsing sentence failed with the following error: ${errorDescription}`);
+    this._errorDescription = errorDescription;
   }
 
-  const [languageSentence, englishSentence] = lines;
-  const languageSentenceParts: SentencePart[] = [];
-  let remainingLanguageSentence = languageSentence;
-  while (remainingLanguageSentence.length > 0) {
-    const nextWordIndex = remainingLanguageSentence.indexOf("[[");
+  public get errorDescription(): string {
+    return this._errorDescription;
+  }
+}
+
+function parseSentence(message: string, sentence: string, practiceWords: string[], fillerWords: string[]): SentencePart[] {
+  const lines = message.split("\n").map((v) => v.trim()).filter((v) => v.length > 0); // Ignore extra empty linebreaks, sometimes they occur
+  if (lines.length !== 1) {
+    throw new ParseSentenceError("Incorrect line count, only a single line was expected");
+  }
+
+  const messageSentence = lines[0];
+  const sentenceParts: SentencePart[] = [];
+  let remainingMessageSentence = messageSentence;
+  const unknownWords: string[] = [];
+  while (remainingMessageSentence.length > 0) {
+    const nextWordIndex = remainingMessageSentence.indexOf("[[");
     if (nextWordIndex >= 0) {
       if (nextWordIndex > 0) {
-        languageSentenceParts.push({ type: "Text", content: remainingLanguageSentence.substring(0, nextWordIndex) });
-        remainingLanguageSentence = remainingLanguageSentence.substring(nextWordIndex);
+        sentenceParts.push({ type: "Text", content: remainingMessageSentence.substring(0, nextWordIndex) });
+        remainingMessageSentence = remainingMessageSentence.substring(nextWordIndex);
       }
 
-      const endIndex = remainingLanguageSentence.indexOf("]]");
+      const endIndex = remainingMessageSentence.indexOf("]]");
       if (endIndex < 0) {
-        throw new Error("Invalid grammar rule practice message: no matching ]] for [[");
+        throw new ParseSentenceError("No matching ]] for [[");
       }
 
-      const wordAndUnmodifiedWord = remainingLanguageSentence.substring(2, endIndex).split("|");
+      const wordAndUnmodifiedWord = remainingMessageSentence.substring(2, endIndex).split("|");
       if (wordAndUnmodifiedWord.length !== 2) {
-        throw new Error("Invalid grammar rule practice message: incorrect word and unmodified word division");
+        throw new ParseSentenceError("Incorrect separation of modified and unmodified word");
       }
 
       const [word, unmodifiedWord] = wordAndUnmodifiedWord;
-      let type: SentencePartType = "UnknownWord";
       if (practiceWords.includes(unmodifiedWord)) {
-        type = "PracticeWord";
+        sentenceParts.push({ type: "PracticeWord", content: word, unmodifiedWord });
       } else if (fillerWords.includes(unmodifiedWord)) {
-        type = "FillerWord";
+        sentenceParts.push({ type: "FillerWord", content: word, unmodifiedWord });
+      } else {
+        unknownWords.push(word);
       }
 
-      languageSentenceParts.push({ type, content: word, unmodifiedWord });
-      remainingLanguageSentence = remainingLanguageSentence.substring(endIndex + 2);
+      remainingMessageSentence = remainingMessageSentence.substring(endIndex + 2);
     } else {
-      languageSentenceParts.push({ type: "Text", content: remainingLanguageSentence });
-      remainingLanguageSentence = "";
+      sentenceParts.push({ type: "Text", content: remainingMessageSentence });
+      remainingMessageSentence = "";
     }
   }
 
-  return { languageSentenceParts, englishSentence };
+  if (unknownWords.length > 0) {
+    throw new ParseSentenceError(`The following words were marked with brackets but are not present in the provided word list: ${unknownWords.join(", ")}`);
+  }
+
+  const formattedSentence = sentenceParts.map((v) => v.content).join("");
+  if (sentence !== formattedSentence) {
+    throw new ParseSentenceError(
+      "When removing [[, ]], |, and the unmodified words from the formatted sentence, the result not match the original sentence.\n"
+      + `Original: ${sentence}\n`
+      + `Formatted: ${formattedSentence}\n`);
+  }
+
+  return sentenceParts;
 }
 
-export class GrammarRuleSentenceGenerator {
+class GrammarRuleSentenceGenerator {
   private readonly language: string;
   private readonly model: Model;
-  private readonly agent: Agent = new Agent();
+
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  private readonly generatorAgent: Agent = new Agent(logChatForDebugging ? "LogChatForDebugging" : undefined);
+
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  private readonly formatterAgent: Agent = new Agent(logChatForDebugging ? "LogChatForDebugging" : undefined);
+
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  private readonly wordIsolatorAgent: Agent = new Agent(logChatForDebugging ? "LogChatForDebugging" : undefined);
+
   private readonly grammarRule: GrammarRuleEntry;
   private readonly practiceWords: string[];
   private readonly fillerWords: string[];
 
-  private sentence: Sentence | null = null;
+  private sentence: string | null = null;
+  private englishSentence: string | null = null;
+  private sentenceParts: SentencePart[] | null = null;
+  private parseSentenceError: ParseSentenceError | null = null;
+  private sentenceWithIsolatedWords: string | null = null;
+  private incorrectSentenceWithIsolatedWords: string | null = null;
 
   public constructor(language: string, model: Model, grammarRule: GrammarRuleEntry, practiceWords: string[], fillerWords: string[]) {
     this.language = language;
@@ -137,10 +175,8 @@ export class GrammarRuleSentenceGenerator {
       prompt += `STEP ${step}: Provide an English translation of the sentence.`;
     }
 
-    logPromptData(prompt);
-    this.agent.addMessage("System", prompt);
-    const chatResponse = await this.agent.getResponse(this.model, sentenceGenerationTemperature);
-    logPromptData(chatResponse.message);
+    this.generatorAgent.addMessage("System", prompt);
+    const chatResponse = await this.generatorAgent.getResponse(this.model, sentenceGenerationTemperature);
 
     const message = chatResponse.message.trim();
     if (message === "$BAD_GRAMMAR_RULE") {
@@ -165,10 +201,8 @@ export class GrammarRuleSentenceGenerator {
       + "nothing else:\n\n"
       + "$OK";
 
-    logPromptData(prompt);
-    this.agent.addMessage("System", prompt);
-    const chatResponse = await this.agent.getResponse(this.model, 0);
-    logPromptData(chatResponse.message);
+    this.generatorAgent.addMessage("System", prompt);
+    const chatResponse = await this.generatorAgent.getResponse(this.model, 0);
 
     const message = chatResponse.message.trim();
     if (message === "$BAD_GRAMMAR_RULE_USAGE") {
@@ -196,10 +230,8 @@ export class GrammarRuleSentenceGenerator {
       + "If the sentence has a clear, realistic meaning that helps reinforce the grammar structure, respond with the following message and nothing else:\n\n"
       + "$OK";
 
-    logPromptData(prompt);
-    this.agent.addMessage("System", prompt);
-    const chatResponse = await this.agent.getResponse(this.model, 0);
-    logPromptData(chatResponse.message);
+    this.generatorAgent.addMessage("System", prompt);
+    const chatResponse = await this.generatorAgent.getResponse(this.model, 0);
 
     const message = chatResponse.message.trim();
     if (message === "$BAD_MEANING") {
@@ -211,88 +243,290 @@ export class GrammarRuleSentenceGenerator {
     return true;
   }
 
-  public async formatSentence(): Promise<void> {
-    let prompt = "Your task is to format these generated sentences so that they can be parsed by the user's practice app. I will now instruct you on how to "
-      + "generate your response. You must follow these instructions exactly or else the response may be parsed incorrectly, leading to errors for the user. "
-      + "Do not include any extra symbols, markup, lines, or linebreaks other than what is specified.\n\n";
-
-    let step = 1;
-    prompt += `STEP ${step}: Write the generated sentence on the first line of your response. Include no additional markup around the sentence.`;
-    if (this.practiceWords.length > 0 || this.fillerWords.length > 0) {
-      const listOrLists = this.practiceWords.length > 0 && this.fillerWords.length > 0 ? "lists" : "list";
-      prompt += `\n  - When writing out the sentence, place double brackets around each word chosen from the provided ${listOrLists}. Additionally, within the `
-        + "brackets, write the original, unmodified word, EXACTLY as it appears in the word list, separated using the | character. For example, if a chosen "
-        + "word is 'run' and it was conjugated to 'ran', it should appear in the sentence as [[ran|run]]. An example of a complete formatted sentence is: 'I "
-        + "[[ran|run]] five miles yesterday.'.";
-      prompt += "\n  - For all other words, including ones utilized by the grammar rule but not in the provided word list, you should not add any additional "
-      + "markup.";
+  public async finalizeRawSentence(attempt: number): Promise<boolean> {
+    let prompt: string;
+    if (attempt === 0) {
+      prompt = "Now please respond with the following message, formatted exactly as follows: the generated sentence should be on the first line with no "
+        + "additional formatting, markup, or linebreaks. The English translation should be on the second line with no additional formatting, markup, or "
+        + "linebreaks.";
+    } else {
+      prompt = "The response that you provided could not be parsed because it was not properly formatted as two lines with the generated sentence on the "
+        + "first line and the English translation on the second lines. Please provide another response with the correct formatting using the previously-"
+        + "provided instructions.";
     }
 
-    prompt += "\n\n";
-    step++;
+    this.generatorAgent.addMessage("System", prompt);
+    const chatResponse = await this.generatorAgent.getResponse(this.model, 0);
 
-    prompt += `STEP ${step}: Write the English translation of the sentence on the next line. Include no additional markup around the sentence.`;
-    step++;
+    const lines = chatResponse.message.split("\n").map((v) => v.trim()).filter((v) => v.length > 0);
+    if (lines.length !== 2) {
+      return false;
+    }
 
-    logPromptData(prompt);
-    this.agent.addMessage("System", prompt);
-    const chatResponse = await this.agent.getResponse(this.model, 0);
-    logPromptData(chatResponse.message);
-
-    const message = chatResponse.message.trim();
-    this.sentence = parseSentence(message, this.practiceWords, this.fillerWords);
+    [this.sentence, this.englishSentence] = lines;
+    return true;
   }
 
-  public async validateSentence(): Promise<Sentence | null> {
+  public async formatSentence(attempt: number): Promise<boolean> {
     assert(this.sentence !== null);
+
     if (this.practiceWords.length === 0 && this.fillerWords.length === 0) {
-      return this.sentence;
+      this.sentenceParts = [{ type: "Text", content: this.sentence }];
+      return true;
     }
 
-    let prompt = "In your previous response, within the generated sentence, you identified the following pairs of modified/original words:\n\n";
+    let prompt: string;
+    if (attempt === 0) {
+      const words = [...this.practiceWords, ...this.fillerWords].join("\n");
+      prompt = `The user is learning ${this.language}. The following is a ${this.language} sentence:\n\n`
+        + `${this.sentence}\n\n`
+        + "Here is a list of words that the user is studying:\n\n"
+        + `${words}\n\n`
+        + "Your task is to format the sentence so that it can be parsed by the user's practice app. I will now instruct you on how to generate your response. "
+        + "You must follow these instructions exactly or else the response may be parsed incorrectly, leading to errors for the user. Do not include any extra "
+        + "symbols, markup, lines, or linebreaks other than what is specified.\n\n"
+        + "Write the sentence on the first line of your response. Include no additional markup around the sentence. When writing out the sentence, place "
+        + "double brackets around each word which appears in the provided word list. Note that words in the sentence may not appear exactly as they do in the "
+        + "list. For example, if the word 'run' appears in the word list and the conjugated form 'ran' appears in the sentence, this should still count as a "
+        + "match. Then, within the brackets, write the original, unmodified word, EXACTLY as it appears in the word list, separated using the | character. For "
+        + "example, if a listed word is 'run' and it was conjugated to 'ran' in the sentence, it should appear in your response as [[ran|run]]. An example of "
+        + "a complete formatted sentence is: 'I [[ran|run]] five miles yesterday.'.";
+    } else {
+      assert(this.parseSentenceError !== null);
+      prompt = "The parser was run on the response that you provided and it generated the following error:\n\n"
+        + `${this.parseSentenceError.errorDescription}\n\n`
+        + "Please repeat the previously-provided formatting instructions, making sure to format everything exactly as described and to correctly identify "
+        + "words that appear in the provided word list using the [[ ]] syntax without identifying any additional unlisted words.";
+    }
 
-    for (const part of this.sentence.languageSentenceParts) {
-      if (part.type === "PracticeWord" || part.type === "FillerWord") {
-        prompt += `LISTED WORD: ${part.content}, ${part.unmodifiedWord}\n`;
-      } else if (part.type === "UnknownWord") {
-        prompt += `UNKNOWN WORD: ${part.content}, ${part.unmodifiedWord}\n`;
+    this.formatterAgent.addMessage("System", prompt);
+    const chatResponse = await this.formatterAgent.getResponse(this.model, 0);
+
+    const message = chatResponse.message.trim();
+
+    try {
+      this.sentenceParts = parseSentence(message, this.sentence, this.practiceWords, this.fillerWords);
+      return true;
+    } catch (error) {
+      if (error instanceof ParseSentenceError) {
+        this.parseSentenceError = error;
+        return false;
+      } else {
+        throw error;
       }
     }
+  }
 
-    prompt += "\n";
+  public async validateFormattedSentence(): Promise<"Valid" | "Invalid" | "InvalidWithFormattingErrors"> {
+    assert(this.sentence !== null);
+    assert(this.sentenceParts !== null);
 
-    const unknownWordCount = this.sentence.languageSentenceParts.filter((v) => v.type === "UnknownWord").length;
-    const listOrLists = this.practiceWords.length > 0 && this.fillerWords.length > 0 ? "lists" : "list";
-    if (unknownWordCount > 0) {
-      prompt += `As you can see, your response marked ${unknownWordCount} ${unknownWordCount === 1 ? "word" : "words"} which was not present in the provided `
-        + `word ${listOrLists}. This mistake must be corrected. Please do the following:\n\n`;
-    } else {
-      prompt += `Please verify that these modified/unmodified word pairs are correct. For each pair, the modified word should appear in the generated sentence `
-        + `and the unmodified word should EXACTLY match one of the listed words. In many cases, the modified and unmodified words will be the same, which is `
-        + "to be expected. Otherwise, the modified word should generally be some conjugation of the unmodified word (for example, 'ran' and 'run').\n\n";
-      prompt += "If you identify any errors, please do the following:\n\n";
+    if (this.practiceWords.length === 0 && this.fillerWords.length === 0) {
+      return "Valid";
     }
 
-    prompt += "Repeat the previously-provided formatting instructions, this time making sure to accurately flag ALL words within the provided word "
-      + `${listOrLists} and no additional words. Your response format should not change: the generated sentence should be on its own line, followed by the `
-      + "English translation on the next line.";
+    const identifiedWords = this.sentenceParts
+      .filter((v) => v.type !== "Text")
+      .map((v) => `${v.content} / ${v.unmodifiedWord}`)
+      .join("\n");
 
-    if (unknownWordCount === 0) {
-      prompt += "\n\nOtherwise, if you do not identify any errors, respond with the following message and nothing else:\n\n"
-        + "$OK";
-    }
+    const prompt = "You identified the following listed words within the sentence:\n\n"
+      + `${identifiedWords}\n\n`
+      + `Please verify that these modified/unmodified word pairs are correct. For each pair, the modified word should appear in the generated sentence and the `
+      + `unmodified word should EXACTLY match one of the listed words. In many cases, the modified and unmodified words will be the same, which is to be `
+      + "expected. Otherwise, the modified word should generally be some conjugation of the unmodified word (for example, 'ran' and 'run').\n\n"
+      + "If you identify any errors, repeat the previously-provided formatting instructions, making sure to format everything exactly as described and to "
+      + "correctly identify words that appear in the provided word list using the [[ ]] syntax without identifying any additional unlisted words.\n\n"
+      + "Otherwise, if you do not identify any errors, respond with the following message and nothing else:\n\n"
+      + "$OK";
 
-    logPromptData(prompt);
-    this.agent.addMessage("System", prompt);
-    const chatResponse = await this.agent.getResponse(this.model, 0);
-    logPromptData(chatResponse.message);
+    this.formatterAgent.addMessage("System", prompt);
+    const chatResponse = await this.formatterAgent.getResponse(this.model, 0);
 
     const message = chatResponse.message.trim();
     if (message === "$OK") {
-      return this.sentence;
-    } else {
-      this.sentence = parseSentence(message, this.practiceWords, this.fillerWords);
-      return null;
+      return "Valid";
     }
+
+    try {
+      this.sentenceParts = parseSentence(message, this.sentence, this.practiceWords, this.fillerWords);
+      return "Invalid";
+    } catch (error) {
+      if (error instanceof ParseSentenceError) {
+        this.parseSentenceError = error;
+        return "InvalidWithFormattingErrors";
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  public async isolateWords(attempt: number): Promise<boolean> {
+    assert(this.sentence !== null);
+
+    let prompt: string;
+    if (attempt === 0) {
+      prompt = `The following is a ${this.language} sentence:\n\n`
+        + `${this.sentence}\n\n`
+        + "Please take this sentence and add the character | between each word. Your response should consist of a single line and no additional formatting or "
+        + "markup should be added. All grammar (such as commas, quotes, etc.) should be kept intact";
+    } else {
+      assert(this.incorrectSentenceWithIsolatedWords !== null);
+      prompt = "After removing | characters from the message in the response you provided, the resulting sentence did not exactly match the original "
+        + "sentence:\n\n"
+        + `Original sentence: ${this.sentence}\n`
+        + `Response sentence with | removed: ${this.incorrectSentenceWithIsolatedWords}\n\n`
+        + "Please repeat the instructions, making sure that you ONLY add the | character between words and perform no other modifications.";
+    }
+
+    this.wordIsolatorAgent.addMessage("System", prompt);
+    const chatResponse = await this.wordIsolatorAgent.getResponse(this.model, 0);
+
+    const message = chatResponse.message.trim();
+    const messageWithWordSeparatorRemoved = message.replaceAll("|", "");
+    if (messageWithWordSeparatorRemoved !== this.sentence) {
+      this.incorrectSentenceWithIsolatedWords = messageWithWordSeparatorRemoved;
+      return false;
+    }
+
+    this.sentenceWithIsolatedWords = message;
+    return true;
+  }
+
+  public getResult(): GenerateGrammarRuleSentenceResultData {
+    assert(this.sentence !== null);
+    assert(this.englishSentence !== null);
+    assert(this.sentenceParts !== null);
+    assert(this.sentenceWithIsolatedWords !== null);
+
+    return {
+      sentence: this.sentence,
+      englishSentence: this.englishSentence,
+      sentenceParts: this.sentenceParts,
+      sentenceWithIsolatedWords: this.sentenceWithIsolatedWords,
+    };
+  }
+}
+
+export type GenerateGrammarRuleSentenceResult =
+  | "Success"
+  | "Cancelled"
+  | "NoMoreItems"
+  | "BadGrammarRule"
+  | "IncompatibleWords"
+  | "BadGrammarRuleUsage"
+  | "BadMeaning"
+  | "FinalizeRawSentenceFailed"
+  | "FormatSentenceFailed"
+  | "IsolateWordsFailed"
+  | "UnexpectedError";
+
+export async function generateGrammarRuleSentence(
+  language: string,
+  model: Model,
+  grammarRule: GrammarRuleEntry,
+  practiceWords: string[],
+  fillerWords: string[],
+  cancelTest: () => boolean,
+): Promise<[GenerateGrammarRuleSentenceResult, GenerateGrammarRuleSentenceResultData | null]> {
+  try {
+    const sentenceGenerator = new GrammarRuleSentenceGenerator(language, model, grammarRule, practiceWords, fillerWords);
+
+    const generateSentenceResult = await sentenceGenerator.generateSentence();
+    if (generateSentenceResult !== "Success") {
+      return [generateSentenceResult, null];
+    }
+
+    if (cancelTest()) {
+      return ["Cancelled", null];
+    }
+
+    if (!await sentenceGenerator.reviewGrammarRuleUsage()) {
+      return ["BadGrammarRuleUsage", null];
+    }
+
+    if (cancelTest()) {
+      return ["Cancelled", null];
+    }
+
+    if (!await sentenceGenerator.reviewMeaning()) {
+      return ["BadMeaning", null];
+    }
+
+    if (cancelTest()) {
+      return ["Cancelled", null];
+    }
+
+    {
+      let success = false;
+      for (let attempt = 0; !success && attempt < 5; attempt++) {
+        success = await sentenceGenerator.finalizeRawSentence(attempt);
+        if (cancelTest()) {
+          return ["Cancelled", null];
+        }
+      }
+
+      if (!success) {
+        return ["FinalizeRawSentenceFailed", null];
+      }
+    }
+
+    if (cancelTest()) {
+      return ["Cancelled", null];
+    }
+
+    {
+      let success = false;
+      for (let formatAttempt = 0; !success && formatAttempt < 5; formatAttempt++) {
+        const formatSuccess = await sentenceGenerator.formatSentence(formatAttempt);
+        if (cancelTest()) {
+          return ["Cancelled", null];
+        }
+
+        if (!formatSuccess) {
+          continue;
+        }
+
+        for (let validateAttempt = 0; !success && validateAttempt < 5; validateAttempt++) {
+          const validateResult = await sentenceGenerator.validateFormattedSentence();
+          if (cancelTest()) {
+            return ["Cancelled", null];
+          }
+
+          if (validateResult === "Valid") {
+            // Validation succeeded
+            success = true;
+          } else if (validateResult === "Invalid") {
+            // Validation failed so we attempted to reformat and that succeeded, so repeat the validation loop
+          } else {
+            // Validation failed so we attempted to reformat and that also failed, so repeat the formating loop
+            break;
+          }
+        }
+      }
+
+      if (!success) {
+        return ["FormatSentenceFailed", null];
+      }
+    }
+
+    {
+      let success = false;
+      for (let attempt = 0; !success && attempt < 5; attempt++) {
+        success = await sentenceGenerator.isolateWords(attempt);
+        if (cancelTest()) {
+          return ["Cancelled", null];
+        }
+      }
+
+      if (!success) {
+        return ["IsolateWordsFailed", null];
+      }
+    }
+
+
+    return ["Success", sentenceGenerator.getResult()];
+  } catch (error) {
+    return ["UnexpectedError", null];
   }
 }
