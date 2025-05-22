@@ -263,6 +263,7 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
         return result;
 
       case "IncompatibleWords":
+      case "BadGrammar":
       case "BadGrammarRuleUsage":
       case "BadMeaning":
         // Try again with new words
@@ -477,6 +478,10 @@ export function SrsPractice(props: GrammarRulePracticeProps): React.JSX.Element 
 
         case "IncompatibleWords":
           setDisplayMessage("Failed to choose compatible words");
+          return;
+
+        case "BadGrammar":
+          setDisplayMessage("Failed to generate sentence with proper grammar");
           return;
 
         case "BadGrammarRuleUsage":

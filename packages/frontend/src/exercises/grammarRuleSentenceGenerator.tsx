@@ -188,61 +188,6 @@ class GrammarRuleSentenceGenerator {
     return "Success";
   }
 
-  public async reviewGrammarRuleUsage(): Promise<boolean> {
-    const prompt = "Now please review the sentence you generated. It should demonstrate a clear use case of the grammar rule. For example:\n"
-      + "  - If the grammar rule describes how to conjugate a verb in the past tense, the generated sentence must contain a verb in the past tense.\n"
-      + "  - If the grammar rule dictates how to use a certain pronoun, the sentence should contain the correct usage of that pronoun.\n"
-      + "  - If the grammar is focusing on the usage of a set expression, the sentence should use that expression.\n"
-      + "\n"
-      + "If the sentence does NOT make clear use of the grammar rule in a manner that is appropriate for a language learner, respond with the following "
-      + "message and nothing else:\n\n"
-      + "$BAD_GRAMMAR_RULE_USAGE\n\n"
-      + "Otherwise, if the sentence does make clear use of the grammar rule and helps reinforce the grammar structure, respond with the following message and "
-      + "nothing else:\n\n"
-      + "$OK";
-
-    this.generatorAgent.addMessage("System", prompt);
-    const chatResponse = await this.generatorAgent.getResponse(this.model, 0);
-
-    const message = chatResponse.message.trim();
-    if (message === "$BAD_GRAMMAR_RULE_USAGE") {
-      return false;
-    } else if (message !== "$OK") {
-      throw new Error("Invalid grammar rule usage analysis response");
-    }
-
-    return true;
-  }
-
-  public async reviewMeaning(): Promise<boolean> {
-    const prompt = "Now please review the sentence you generated once more. You are evaluating whether it is appropriate for a language learner. The sentence "
-      + "may be grammatically correct, but your task is to decide whether its meaning is strange, confusing, or unhelpful for someone trying to learn the "
-      + "grammar. A sentence should be marked $BAD_MEANING if it:\n"
-      + "  - Is conceptually absurd or physically implausible (e.g. 'The pencil ran faster than the car')\n"
-      + "  - Combines incompatible ideas (e.g. 'He drank three ideas')\n"
-      + "  - Makes arbitrary or confusing comparisons or statements without context (e.g. 'One person is heavier than three people')\n"
-      + "  - Describes situations that are so unlikely or specific that they distract from the grammar being taught (e.g. 'The moon hired an assistant')\n"
-      + "  - Uses nouns or modifiers that are mismatched in category, scale, or unit (e.g. 'She ran faster than ten hours')\n"
-      + "\n"
-      + "Do NOT rely on whether a sentence could technically occur in the real world. If it is odd or confusing in a language learning context, respond with "
-      + "the following message and nothing else:\n\n"
-      + "$BAD_MEANING\n\n"
-      + "If the sentence has a clear, realistic meaning that helps reinforce the grammar structure, respond with the following message and nothing else:\n\n"
-      + "$OK";
-
-    this.generatorAgent.addMessage("System", prompt);
-    const chatResponse = await this.generatorAgent.getResponse(this.model, 0);
-
-    const message = chatResponse.message.trim();
-    if (message === "$BAD_MEANING") {
-      return false;
-    } else if (message !== "$OK") {
-      throw new Error("Invalid meaning analysis response");
-    }
-
-    return true;
-  }
-
   public async finalizeRawSentence(attempt: number): Promise<boolean> {
     let prompt: string;
     if (attempt === 0) {
@@ -264,6 +209,102 @@ class GrammarRuleSentenceGenerator {
     }
 
     [this.sentence, this.englishSentence] = lines;
+    return true;
+  }
+
+  public async reviewCorrectness(): Promise<boolean> {
+    assert(this.sentence !== null);
+
+    const prompt = `The user is learning ${this.language}. The following is a ${this.language} sentence generated for practice purposes:\n\n`
+      + `${this.sentence}\n\n`
+      + `Please determine if the sentence is grammatically correct and if it flows naturally in ${this.language}. If the sentence contains any grammatical `
+      + "errors or irregularities, respond with the following message and nothing else:\n\n"
+      + "$ERROR\n\n"
+      + "Otherwise, respond with the following message and nothing else:\n\n"
+      + "$OK";
+
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    const agent = new Agent(logChatForDebugging ? "LogChatForDebugging" : undefined);
+    agent.addMessage("System", prompt);
+    const chatResponse = await agent.getResponse(this.model, 0);
+
+    const message = chatResponse.message.trim();
+    if (message === "$ERROR") {
+      return false;
+    } else if (message !== "$OK") {
+      throw new Error("Invalid correctness analysis response");
+    }
+
+    return true;
+  }
+
+  public async reviewGrammarRuleUsage(): Promise<boolean> {
+    assert(this.sentence !== null);
+
+    const prompt = `The user is learning ${this.language} and wants to practice grammar. They have learned the following grammar rule: `
+      + `${this.grammarRule.name}. Here is a short description of this rule:\n\n`
+      + `${this.grammarRule.description}\n\n`
+      + `The following is a ${this.language} sentence generated for practice purposes:\n\n`
+      + `${this.sentence}\n\n`
+      + "Please review this sentence. It should demonstrate a clear use case of the grammar rule. For example:\n"
+      + "  - If the grammar rule describes how to conjugate a verb in the past tense, the generated sentence must contain a verb in the past tense.\n"
+      + "  - If the grammar rule dictates how to use a certain pronoun, the sentence should contain the correct usage of that pronoun.\n"
+      + "  - If the grammar is focusing on the usage of a set expression, the sentence should use that expression.\n"
+      + "\n"
+      + "If the sentence does NOT make clear use of the grammar rule in a manner that is appropriate for a language learner, respond with the following "
+      + "message and nothing else:\n\n"
+      + "$ERROR\n\n"
+      + "Otherwise, if the sentence does make clear use of the grammar rule and helps reinforce the grammar structure, respond with the following message and "
+      + "nothing else:\n\n"
+      + "$OK";
+
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    const agent = new Agent(logChatForDebugging ? "LogChatForDebugging" : undefined);
+    agent.addMessage("System", prompt);
+    const chatResponse = await agent.getResponse(this.model, 0);
+
+    const message = chatResponse.message.trim();
+    if (message === "$ERROR") {
+      return false;
+    } else if (message !== "$OK") {
+      throw new Error("Invalid grammar rule usage analysis response");
+    }
+
+    return true;
+  }
+
+  public async reviewMeaning(): Promise<boolean> {
+    assert(this.sentence !== null);
+
+    const prompt = `The user is learning ${this.language}. The following is a ${this.language} sentence generated for practice purposes:\n\n`
+      + `${this.sentence}\n\n`
+      + "Please review the sentence. You are evaluating whether it is appropriate for a language learner. The sentence may be grammatically correct, but your "
+      + "task is to decide whether its meaning is strange, confusing, or unhelpful for someone trying to learn the grammar. A sentence should be marked $ERROR "
+      + "if it:\n"
+      + "  - Is conceptually absurd or physically implausible (e.g. 'The pencil ran faster than the car')\n"
+      + "  - Combines incompatible ideas (e.g. 'He drank three ideas')\n"
+      + "  - Makes arbitrary or confusing comparisons or statements without context (e.g. 'One person is heavier than three people')\n"
+      + "  - Describes situations that are so unlikely or specific that they distract from the grammar being taught (e.g. 'The moon hired an assistant')\n"
+      + "  - Uses nouns or modifiers that are mismatched in category, scale, or unit (e.g. 'She ran faster than ten hours')\n"
+      + "\n"
+      + "Do NOT rely on whether a sentence could technically occur in the real world. If it is odd or confusing in a language learning context, respond with "
+      + "the following message and nothing else:\n\n"
+      + "$ERROR\n\n"
+      + "If the sentence has a clear, realistic meaning that helps reinforce the grammar structure, respond with the following message and nothing else:\n\n"
+      + "$OK";
+
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    const agent = new Agent(logChatForDebugging ? "LogChatForDebugging" : undefined);
+    agent.addMessage("System", prompt);
+    const chatResponse = await agent.getResponse(this.model, 0);
+
+    const message = chatResponse.message.trim();
+    if (message === "$ERROR") {
+      return false;
+    } else if (message !== "$OK") {
+      throw new Error("Invalid meaning analysis response");
+    }
+
     return true;
   }
 
@@ -412,6 +453,7 @@ export type GenerateGrammarRuleSentenceResult =
   | "Success"
   | "Cancelled"
   | "NoMoreItems"
+  | "BadGrammar"
   | "BadGrammarRule"
   | "IncompatibleWords"
   | "BadGrammarRuleUsage"
@@ -441,22 +483,6 @@ export async function generateGrammarRuleSentence(
       return ["Cancelled", null];
     }
 
-    if (!await sentenceGenerator.reviewGrammarRuleUsage()) {
-      return ["BadGrammarRuleUsage", null];
-    }
-
-    if (cancelTest()) {
-      return ["Cancelled", null];
-    }
-
-    if (!await sentenceGenerator.reviewMeaning()) {
-      return ["BadMeaning", null];
-    }
-
-    if (cancelTest()) {
-      return ["Cancelled", null];
-    }
-
     {
       let success = false;
       for (let attempt = 0; !success && attempt < 5; attempt++) {
@@ -469,6 +495,30 @@ export async function generateGrammarRuleSentence(
       if (!success) {
         return ["FinalizeRawSentenceFailed", null];
       }
+    }
+
+    if (cancelTest()) {
+      return ["Cancelled", null];
+    }
+
+    if (!await sentenceGenerator.reviewCorrectness()) {
+      return ["BadGrammar", null];
+    }
+
+    if (cancelTest()) {
+      return ["Cancelled", null];
+    }
+
+    if (!await sentenceGenerator.reviewGrammarRuleUsage()) {
+      return ["BadGrammarRuleUsage", null];
+    }
+
+    if (cancelTest()) {
+      return ["Cancelled", null];
+    }
+
+    if (!await sentenceGenerator.reviewMeaning()) {
+      return ["BadMeaning", null];
     }
 
     if (cancelTest()) {
